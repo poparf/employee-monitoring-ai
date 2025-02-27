@@ -74,6 +74,7 @@ Entity Alert
  - level - high/medium/low
  - Employee Fk
  - Zone Fk
+ - screenshot
 
  Entity PPERecognitionItems
   - video_camera fk
@@ -85,6 +86,10 @@ Entity PPE
  - name
 
 ### Main Features:
+
+- Video recording feature
+ 1. If an alert happens at least a screenshot is taken
+ 2. preferably a video that can be replayed
 
 - Face recognition feature
 
