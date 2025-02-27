@@ -4,7 +4,7 @@
 
 ### Steps:
 
-1. [ ] Prepare both projects dependencies and folder structure (FE, BE)
+1. [X] Prepare both projects dependencies and folder structure (FE, BE)
 2. [ ] Create the database structure ( PostgreSQL )
 3. [ ] Create the models and a basic CRUD for them
 4. [ ] Create a login/register page with SMS
@@ -22,6 +22,67 @@
 14. [ ] Statistics
 
 15. [ ]
+
+
+### Database structure
+
+Entity User 
+  - username
+  - password
+  - email
+  - phoneNumber
+
+Entity Employee
+  - firstName
+  - lastName
+  - phoneNumber
+  - role
+  - gender
+  - profilePicture
+  - encodedFace
+
+Entity VideoCamera
+  - id
+  - ip
+  - port
+  - username
+  - password
+  - name
+  - location
+  - status  // active/inactive/error/offline
+
+Entity PersonDetected
+  - Employee foreign key
+  - timestamp
+  - VideoCamera foreign key
+
+Entity Zone
+  - VideoCamera foreign key
+  - name
+  - mask - bytes
+
+Entity Authorization
+ - status - enum - allowed/notallowed -  1/0
+ - Employee Foreign key
+ - Zone Foreign key
+ - createdAt
+ - updatedAt
+
+Entity Alert
+ - timestamp
+ - name
+ - level - high/medium/low
+ - Employee Fk
+ - Zone Fk
+
+ Entity PPERecognitionItems
+  - video_camera fk
+  - ppe_id fk
+  - is_present
+
+Entity PPE
+ - id
+ - name
 
 ### Main Features:
 
@@ -69,3 +130,5 @@
 
 1. What is the best way to raise alerts in real time towards the FE (subscriber pattern)
 2. How to differentiate between video streams? Each one should have an unique id
+3. How to get the stream of the TAPO camera into the web browser?
+https://www.tp-link.com/us/support/faq/2680/
