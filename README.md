@@ -5,9 +5,10 @@
 ### Steps:
 
 1. [X] Prepare both projects dependencies and folder structure (FE, BE)
-2. [ ] Create the database structure ( PostgreSQL )
-3. [ ] Create the models and a basic CRUD for them
-4. [ ] Create a login/register page with SMS
+2. [X] Create the database structure ( PostgreSQL )
+3. [X] Create the models
+3.1 [ ] basic CRUD for them
+4. [ ] Create a login/register page simple for the begging
 5. [ ] Prepare a few video files, people in an office and a construction site
 6. [ ] JWT Auth like the teacher did at Web Tech ( you can copy that part )
 7. [ ] Create a side-bar that can exapand or contract, the sidebar must contain the following buttons: ( asemanator cu HARP) - Emplyoees - Live cameras - Statistics - Settings - Logout
@@ -18,10 +19,18 @@
 11. [ ] When clicking on detect faces - it will start detecting faces - the unauthorized personel list button will appear - There you can select which people are allowed to be there or not, not mandatory - Every decision is saved in db
 12. [ ] When clicking on detect PPE - it will start using the model that detects only PPE and the face - if any person is not having the whole equipment a db insertion is made togheter with an alert
 13. [ ] For the settings page - the administrator can configure system settings such as: - Adding or removing users - Setting up alerts preferences - change password
-
 14. [ ] Statistics
-
-15. [ ]
+        - Histogram of each employee and the number of times it didn't wear the ppe
+        - Total number of alerts / histogram based on level
+        - Alerts per VideoCamera
+        - Average time spent by employees in monitored zones
+        - Number of unauthorized access attempts per day/week/month
+        - PPE compliance rate over time
+        - Number of alerts resolved vs unresolved
+        - Employee attendance based on face recognition
+        - Most frequently visited zones
+        - Average response time to alerts
+15. [ ] Extra: create 2 separate type of accounts to leverage permissions -> one is administrator full access -> other is security personell -> cannot modifiy settings
 
 
 ### Database structure
@@ -40,7 +49,7 @@ Entity Employee
   - gender
   - profilePicture
   - encodedFace
-
+  - department
 Entity VideoCamera
   - id
   - ip
@@ -53,13 +62,13 @@ Entity VideoCamera
 
 Entity PersonDetected
   - Employee foreign key
-  - timestamp
+  - detected_at
   - VideoCamera foreign key
 
 Entity Zone
   - VideoCamera foreign key
   - name
-  - mask - bytes
+  - mask - bclr path to image
 
 Entity Authorization
  - status - enum - allowed/notallowed -  1/0
@@ -70,11 +79,14 @@ Entity Authorization
 
 Entity Alert
  - timestamp
- - name
+ - type
  - level - high/medium/low
  - Employee Fk
  - Zone Fk
  - screenshot
+ - resolved - true/false - > can be set by administrator
+ - timestampResolvedTrue
+ - explanation
 
  Entity PPERecognitionItems
   - video_camera fk
