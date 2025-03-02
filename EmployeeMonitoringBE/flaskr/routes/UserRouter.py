@@ -33,7 +33,6 @@ def register():
     email = data.get("email")    
     if re.match( r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email) == None:
         return jsonify({"message": "Invalid email format"}), 400
-
     # Validate password
     password = data.get("password")
     if len(password) < 8:
@@ -52,6 +51,10 @@ def register():
 
 
     db = get_db()
+    user = db.query(User).filter_by(email=email).first()
+    if user != None:
+        return jsonify({"message": "Email already in use"}), 400
+    
     hashedPassword = hash_password(password)
     user = User(email=email, password=hashedPassword, phoneNumber=phoneNumber)
     db.add(user)
