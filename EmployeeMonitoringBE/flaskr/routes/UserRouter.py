@@ -1,26 +1,31 @@
 from flask import Blueprint, request, jsonify
 from flaskr.db import get_db
 from flaskr.entities.User import User
+from flaskr.entities.EmailCodes import EmailCodes
 from flaskr.auth import check_password, hash_password
 import re
+from flaskr.services.EmailService import get_email_service
+import flaskr.services.CodeGenerator as CodeGenerator
+import datetime
+from threading import Timer
 
 bp = Blueprint("users", __name__, url_prefix="/users")
 
 @bp.route("/register", methods=["POST"])
 def register():
     data = request.get_json()
-
+    
     # Validate data existance
     if data == None:
         return jsonify({"message": "No data provided"}), 400
     
-    if email not in data:
+    if "email" not in data:
         return jsonify({"message": "Email is required"}), 400
     
-    if password not in data:
+    if "password" not in data:
         return jsonify({"message": "Password is required"}), 400
     
-    if phoneNumber not in data:
+    if "phoneNumber" not in data:
         return jsonify({"message": "Phone number is required"}), 400
 
 
@@ -45,17 +50,65 @@ def register():
     if not re.search(r"^[0-9]{10}$", phoneNumber): # Only romanian
         return jsonify({"message": "Invalid phone number"}), 400
 
-    # TODO: Add email verification
-
 
     db = get_db()
     hashedPassword = hash_password(password)
     user = User(email=email, password=hashedPassword, phoneNumber=phoneNumber)
     db.add(user)
+    db.flush()  # Ensure the user ID is generated
+    code = CodeGenerator.generate_email_verification_code()
+    emailVerification = EmailCodes(user_id=user.id, code=code)
+    db.add(emailVerification)
     db.commit()
-    return jsonify({"message": "User created sucessfuly.","user": {"id": user.id, "email": user.email}}), 201
+    # send mail
+    get_email_service().send_code_verification(email, code)
+    # delete email verification after 5 minutes
+    Timer(60 * 5, delete_expired_timer_email_verification, [db, user, emailVerification]).start()
+    return jsonify({"message": "Please verify your email in maximum 5 minutes.","user": {"id": user.id, "email": user.email}}), 201
 
-@bp.route("/login", methods=["POST"]):
+
+def delete_expired_timer_email_verification(db, user, emailVerification):
+    emailVerification = db.query(EmailCodes).filter_by(id=emailVerification.id).first()
+    if emailVerification is not None:
+        if user.is_verified == False:
+            db.delete(user)
+        db.delete(emailVerification)
+        db.commit()
+
+@bp.route("/verify-email", methods=["POST"])
+def verify_email():
+    data = request.get_json()
+
+    # Validate data existance
+    if data == None:
+        return jsonify({"message": "No data provided"}), 400
+    
+    if "email" not in data:
+        return jsonify({"message": "Email is required"}), 400
+    
+    if "code" not in data:
+        return jsonify({"message": "Code is required"}), 400
+
+    email = data.get("email")
+    code = data.get("code")
+
+    db = get_db()
+    user = db.query(User).filter_by(email=email).first()
+    if user == None:
+        return jsonify({"message": "Invalid email or code. There is a possibility that the code expired."}), 400
+
+    emailVerification = db.query(EmailCodes).filter_by(user_id=user.id, code=code).first()
+
+    if emailVerification == None:
+        return jsonify({"message": "Invalid email or code. There is a possibility that the code expired."}), 400
+
+    user.is_verified = True
+
+    db.delete(emailVerification)
+    db.commit()
+    return jsonify({"message": "Email verified"}), 200
+
+@bp.route("/login", methods=["POST"])
 def login():
     data = request.get_json()
 
@@ -63,10 +116,10 @@ def login():
     if data == None:
         return jsonify({"message": "No data provided"}), 400
     
-    if email not in data:
+    if "email" not in data:
         return jsonify({"message": "Email is required"}), 400
     
-    if password not in data:
+    if "password" not in data:
         return jsonify({"message": "Password is required"}), 400
 
     email = data.get("email")
@@ -75,7 +128,7 @@ def login():
     db = get_db()
     user = db.query(User).filter_by(email=email).first()
 
-    if user == None and not check_password(password, user.password):
+    if user == None or not check_password(password, user.password):
         return jsonify({"message": "Invalid email or password."}), 400
 
     return jsonify({"message": "Login successful", "user": {"id": user.id, "email": user.email}}), 200

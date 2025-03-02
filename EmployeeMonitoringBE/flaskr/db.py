@@ -38,6 +38,7 @@ def close_db(e = None):
 
 def init_db():
     global engine
+    Entity.metadata.drop_all(bind=engine)
     Entity.metadata.create_all(bind=engine)
 
 def init_app(app):

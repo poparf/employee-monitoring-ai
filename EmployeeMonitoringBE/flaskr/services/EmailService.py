@@ -25,3 +25,10 @@ class EmailService:
             print("Email sent sucessfuly")
         except Exception as e:
             print("Error after sending:", e)
+
+emailService = None
+def get_email_service():
+    global emailService
+    if emailService == None:
+        emailService = EmailService()
+    return emailService
