@@ -5,3 +5,4 @@ pyjwt
 bcrypt
 os
 dotenv
+face_recognition

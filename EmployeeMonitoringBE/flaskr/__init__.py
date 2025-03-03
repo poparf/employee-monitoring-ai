@@ -9,7 +9,11 @@ def create_app(test_config=None):
     app.config.from_mapping(
         DATABASE_URL = os.getenv("DATABASE_URL"),
         SECRET_KEY = os.getenv("SECRET_KEY"),
-        JWT_SECRET = os.getenv("JWT_SECRET")
+        JWT_SECRET = os.getenv("JWT_SECRET"),
+
+        # Folder settings
+        UPLOAD_FOLDER = os.path.join(app.instance_path, 'assets/profile_pictures'),
+        ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg']
     )
 
     if test_config is None:
