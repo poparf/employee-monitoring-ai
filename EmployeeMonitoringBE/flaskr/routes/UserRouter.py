@@ -140,8 +140,7 @@ def login():
         try:
             token = jwt.encode({
                 "user": {
-                    "id": user.id,
-                    "email": user.email,
+                    "id": user.id
                 }}, # TODO: Add roles
                 # TODO: Add expiration time
                 app.config["JWT_SECRET"],
