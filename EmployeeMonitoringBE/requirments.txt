@@ -3,3 +3,5 @@ sqlalchemy
 psycopg[binary]
 pyjwt
 bcrypt
+os
+dotenv

@@ -1,14 +1,15 @@
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+import os
 
 class EmailService:
     def __init__(self):
         try:
             self.session = smtplib.SMTP('smtp.gmail.com', 587)
             self.session.starttls()
-            self.sender = "eMonitoringAI@gmail.com"
-            self.sender_password = "pqjuschmtiuxxaec"
+            self.sender = os.getenv("SENDER_EMAIL")
+            self.sender_password = os.getenv("SENDER_PASSWORD")
             self.session.login(self.sender, self.sender_password)
             print("Login sucessfuly into server mail.")
         except Exception as e:

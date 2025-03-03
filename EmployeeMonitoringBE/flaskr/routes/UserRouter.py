@@ -7,7 +7,9 @@ import re
 from flaskr.services.EmailService import get_email_service
 import flaskr.services.CodeGenerator as CodeGenerator
 import datetime
+import jwt
 from threading import Timer
+from flask import current_app as app
 
 bp = Blueprint("users", __name__, url_prefix="/users")
 
@@ -113,25 +115,45 @@ def verify_email():
 
 @bp.route("/login", methods=["POST"])
 def login():
-    data = request.get_json()
+    try:
+        data = request.get_json()
 
-    # Validate data existance
-    if data == None:
-        return jsonify({"message": "No data provided"}), 400
-    
-    if "email" not in data:
-        return jsonify({"message": "Email is required"}), 400
-    
-    if "password" not in data:
-        return jsonify({"message": "Password is required"}), 400
+        # Validate data existance
+        if data == None:
+            return jsonify({"message": "No data provided"}), 400
+        
+        if "email" not in data:
+            return jsonify({"message": "Email is required"}), 400
+        
+        if "password" not in data:
+            return jsonify({"message": "Password is required"}), 400
 
-    email = data.get("email")
-    password = data.get("password")
+        email = data.get("email")
+        password = data.get("password")
 
-    db = get_db()
-    user = db.query(User).filter_by(email=email).first()
+        db = get_db()
+        user = db.query(User).filter_by(email=email).first()
 
-    if user == None or not check_password(password, user.password):
-        return jsonify({"message": "Invalid email or password."}), 400
+        if user == None or not check_password(password, user.password):
+            return jsonify({"message": "Invalid email or password."}), 400
 
-    return jsonify({"message": "Login successful", "user": {"id": user.id, "email": user.email}}), 200
+        try:
+            token = jwt.encode({
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                }}, # TODO: Add roles
+                # TODO: Add expiration time
+                app.config["JWT_SECRET"],
+                algorithm="HS256"
+            )
+
+            return jsonify({"token": token, "user": {
+                "id": user.id,
+                "email": user.email,
+                "phoneNumber": user.phoneNumber
+            }}), 200
+        except Exception as e:
+            return jsonify({"message": "Something went wrong"}), 500
+    except Exception as e:
+        return jsonify({"message": "Something went wrong"}), 500

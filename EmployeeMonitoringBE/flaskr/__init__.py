@@ -1,16 +1,15 @@
-import os
 from flask import Flask
-from flaskr.services import EmailService
-
+from dotenv import load_dotenv
+import os
 
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
-
-    # Aici setezi env variables
+    
+    load_dotenv()
     app.config.from_mapping(
-        DATABASE_URL = "postgresql://postgres:Seneca123@localhost:5432/emonitoringdb",
-        JWT_SECRET="ROBERTPOPA",
-        SECRET_KEY="dev"
+        DATABASE_URL = os.getenv("DATABASE_URL"),
+        SECRET_KEY = os.getenv("SECRET_KEY"),
+        JWT_SECRET = os.getenv("JWT_SECRET")
     )
 
     if test_config is None:
