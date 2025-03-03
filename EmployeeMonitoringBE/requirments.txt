@@ -6,3 +6,4 @@ bcrypt
 os
 dotenv
 face_recognition
+sqlalchemy-utils

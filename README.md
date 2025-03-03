@@ -139,6 +139,13 @@ Entity PPE
    - Python
    - Flask
    - YOLO/OpenCV/face_recognition/Ultralytics
+   - Postgres
+        - TODO: Each entity is belongs to a group of users.
+          For each group of users create a new database file
+          Create a FK from all entities to the group
+          Let the users from that group see only the data that it belongs to
+        connection pooling/separate databases for each group
+
 2. Frontend
    - React
    - Tailwind

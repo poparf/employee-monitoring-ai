@@ -10,7 +10,8 @@ def create_app(test_config=None):
         DATABASE_URL = os.getenv("DATABASE_URL"),
         SECRET_KEY = os.getenv("SECRET_KEY"),
         JWT_SECRET = os.getenv("JWT_SECRET"),
-
+        GENERAL_DATABASE_URL = os.getenv("GENERAL_DATABASE_URL"),
+        USERS_DATABASE_URL = os.getenv("USERS_DATABASE_URL"),
         # Folder settings
         UPLOAD_FOLDER = os.path.join(app.instance_path, 'assets/profile_pictures'),
         ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg']

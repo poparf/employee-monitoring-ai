@@ -65,5 +65,23 @@ def create_employee():
         print(e)
         return jsonify({"message": "Something went wrong"}), 500
 
+# TODO: Pagination/sorting can be implemented 
 # Get all employees
-
+@bp.route("/", methods=["GET"])
+#@auth_required
+def get_all_employees():
+    try:
+        db = get_db()
+        employees = db.query(Employee).all()
+        return jsonify([{
+            "id": employee.id,
+            "firstName": employee.firstName,
+            "lastName": employee.lastName,
+            "phoneNumber": employee.phoneNumber,
+            "role": employee.role,
+            "department": employee.department
+        } for employee in employees]), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "Something went wrong"}), 500
+    

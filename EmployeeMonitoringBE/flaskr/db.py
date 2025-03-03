@@ -1,54 +1,86 @@
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from flaskr.entities.BaseEntity import Entity
+from flaskr.entities.auth_db.User import User
+from flaskr.entities.auth_db.Tenant import Tenant
+from flaskr.entities.auth_db.RolePermission import RolePermission
+from flaskr.entities.auth_db.Role import Role
+from flaskr.entities.auth_db.Permission import Permission
+from flaskr.entities.auth_db.EmailCodes import EmailCodes
+
+from flaskr.entities.auth_db.AuthBaseEntity import AuthBaseEntity
 from sqlalchemy.orm import sessionmaker
 from flask import current_app, g
+from sqlalchemy_utils import database_exists, create_database
+import threading
 
-# Import entities
-from flaskr.entities.BaseEntity import Entity
-from flaskr.entities import Employee
-from flaskr.entities import User
-from flaskr.entities import VideoCamera
-from flaskr.entities import Zone
-from flaskr.entities import PPE
-from flaskr.entities import PPERecognition
-from flaskr.entities import PersonDetected
-from flaskr.entities import Alert
-from flaskr.entities import AllowedList
+# Registry stores engines and session factories
+engine_registry = {}
+session_factory_registry = {}
+registry_lock = threading.Lock()
 
 
-engine = None
-SessionLocal = None
+def setup_users_db(app):
+    """Initialize central users database"""
+    user_db_url = app.config['USERS_DATABASE_URL']
+    engine = create_engine(user_db_url)
+    
+    if not database_exists(engine.url):
+        create_database(engine.url)
+    
+    AuthBaseEntity.metadata.drop_all(bind=engine)
+    AuthBaseEntity.metadata.create_all(bind=engine)
+    
+    with registry_lock:
+        engine_registry['users'] = engine
+        session_factory_registry['users'] = sessionmaker(
+            autocommit=False,
+            autoflush=False,
+            bind=engine
+        )
 
-def setup_db(app):
-    global engine, SessionLocal
-    engine = create_engine(app.config['DATABASE_URL'])
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# g este un obiect care este unic pentru fieare request
-# e folosit ca conexiunea sa fie deschisa doar o data
-def get_db():
-    if 'db' not in g:
-        g.db = SessionLocal()
-    return g.db
-
-def close_db(e = None):
-    db = g.pop('db', None)
-    if db is not None:
-        db.close()
-
-def init_db():
-    global engine
-    Entity.metadata.drop_all(bind=engine)
+def setup_tenant_db(tenant_id):
+    """Dynamically create tenant database and session factory"""
+    app = current_app
+    base_url = app.config['GENERAL_DATABASE_URL']
+    db_url = f"{base_url}/{tenant_id}"
+    
+    engine = create_engine(db_url)
+    
+    if not database_exists(engine.url):
+        create_database(engine.url)
+    
+    # Create tables for tenant-specific schema
     Entity.metadata.create_all(bind=engine)
+    
+    with registry_lock:
+        engine_registry[tenant_id] = engine
+        session_factory_registry[tenant_id] = sessionmaker(
+            autocommit=False,
+            autoflush=False,
+            bind=engine
+        )
+
+def get_db():
+    """Get appropriate database session based on current tenant"""
+    if 'db_session' not in g:
+        tenant_id = getattr(g, 'tenant_id', None)
+        
+        if not tenant_id:
+            g.db_session = session_factory_registry['users']()
+        else:
+            if tenant_id not in session_factory_registry:
+                setup_tenant_db(tenant_id)
+            
+            g.db_session = session_factory_registry[tenant_id]()
+    
+    return g.db_session
+
+def close_session(e=None):
+    """Close database session at end of request"""
+    session = g.pop('db_session', None)
+    if session is not None:
+        session.close()
 
 def init_app(app):
-    setup_db(app)
-    # Register database functions with the Flask app
-    app.teardown_appcontext(close_db)
-    
-    # flask --app flaskr init-db
-    # Create a CLI command to initialize the database
-    @app.cli.command('init-db')
-    def init_db_command():
-        init_db()
-        print('Initialized the database.')
+    app.teardown_appcontext(close_session)
+    setup_users_db(app)

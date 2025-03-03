@@ -1,6 +1,6 @@
 import jwt
 from functools import wraps
-from flask import request, abort
+from flask import request, abort, g
 from flask import current_app as app
 from flaskr.db import get_db
 from flaskr.entities.User import User
@@ -18,17 +18,9 @@ def auth_required(f):
         try:
             data = jwt.decode(token, app.config["JWT_SECRET"], algorithms=["HS256"])
             db = get_db()
-            # Token data contains:
-            # Request header
-            # Request body:
-            """
-            "user": {
-                "id": 1,
-                "email": "robertflorianp037@gmail.com",
-                # Extra roles: ["admin"]
-            }
-            """
+        
             logged_user = db.query(User).filter_by(id=data["user"]["id"]).first()
+            
             if logged_user == None:
                 return {
                     "message": "Invalid token",
@@ -37,6 +29,9 @@ def auth_required(f):
             return {
                 "message": "Something went wrong",
             }, 500
-
+        
+        # Set the tenant database such that it will query that specific one
+        g.tenant_id = logged_user.tenant_id
+        
         return f(logged_user, *args, **kwargs)
     return decorated
