@@ -1,7 +1,6 @@
 from flaskr.entities.BaseEntity import Entity, mapped_column, Mapped
 from sqlalchemy import ForeignKey
 from enum import Enum
-from sqlalchemy.orm import relationship
 
 class PPEStatus(Enum):
     present = "present"

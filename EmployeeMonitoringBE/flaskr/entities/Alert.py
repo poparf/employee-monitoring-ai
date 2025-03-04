@@ -3,7 +3,6 @@ from enum import Enum
 from datetime import datetime
 from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
-from sqlalchemy.orm import relationship
 
 class AlertType(Enum):
     PERSON_DETECTED = "person_detected"

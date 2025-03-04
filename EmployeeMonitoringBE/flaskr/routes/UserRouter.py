@@ -1,14 +1,14 @@
 from flask import Blueprint, request, jsonify
-from flaskr.db import get_db
-from flaskr.entities.User import User
-from flaskr.entities.EmailCodes import EmailCodes
+from flaskr.entities.auth_db.User import User
+from flaskr.db import get_users_db
+from flaskr.entities.auth_db.EmailCodes import EmailCodes
 from flaskr.auth import check_password, hash_password
 import re
 from flaskr.services.EmailService import get_email_service
 import flaskr.services.CodeGenerator as CodeGenerator
-import datetime
 import jwt
 from threading import Timer
+from flaskr.entities.auth_db.Tenant import Tenant
 from flask import current_app as app
 
 bp = Blueprint("users", __name__, url_prefix="/users")
@@ -29,7 +29,8 @@ def register():
     
     if "phoneNumber" not in data:
         return jsonify({"message": "Phone number is required"}), 400
-
+    if "tenant_id" not in data:
+        return jsonify({"message": "Tenant id is required"}), 400
 
     # Validate email
     email = data.get("email")    
@@ -52,13 +53,19 @@ def register():
         return jsonify({"message": "Invalid phone number"}), 400
 
 
-    db = get_db()
+    db = get_users_db()
+    print("Got back users db")
+    
+    tenant_id = data.get("tenant_id")
+    if db.query(Tenant).filter_by(id=tenant_id).first() == None:
+        return jsonify({"message": "Invalid tenant id"}), 400
+    
     user = db.query(User).filter_by(email=email).first()
     if user != None:
         return jsonify({"message": "Email already in use"}), 400
     
     hashedPassword = hash_password(password)
-    user = User(email=email, password=hashedPassword, phoneNumber=phoneNumber)
+    user = User(email=email, password=hashedPassword, phoneNumber=phoneNumber, tenant_id=tenant_id)
     db.add(user)
     db.flush()  # Ensure the user ID is generated
     code = CodeGenerator.generate_email_verification_code()
@@ -97,7 +104,7 @@ def verify_email():
     email = data.get("email")
     code = data.get("code")
 
-    db = get_db()
+    db = get_users_db()
     user = db.query(User).filter_by(email=email).first()
     if user == None:
         return jsonify({"message": "Invalid email or code. There is a possibility that the code expired."}), 400
@@ -131,18 +138,19 @@ def login():
         email = data.get("email")
         password = data.get("password")
 
-        db = get_db()
+        db = get_users_db()
         user = db.query(User).filter_by(email=email).first()
 
         if user == None or not check_password(password, user.password):
             return jsonify({"message": "Invalid email or password."}), 400
 
         try:
+            # TODO: Set token expiration and refresh
             token = jwt.encode({
-                "user": {
-                    "id": user.id
-                }}, # TODO: Add roles
-                # TODO: Add expiration time
+                    "user_id": user.id,
+                    "tenant_id": getattr(user, 'tenant_id', None),
+                    "roles":[role.name for role in user.roles]
+                },
                 app.config["JWT_SECRET"],
                 algorithm="HS256"
             )
@@ -153,6 +161,8 @@ def login():
                 "phoneNumber": user.phoneNumber
             }}), 200
         except Exception as e:
+            print(e)
             return jsonify({"message": "Something went wrong"}), 500
     except Exception as e:
+        print(e)
         return jsonify({"message": "Something went wrong"}), 500

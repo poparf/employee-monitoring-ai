@@ -13,5 +13,5 @@ class PersonDetected(Entity):
 
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"))
     video_camera_id: Mapped[int] = mapped_column(ForeignKey("video_cameras.id"))
-
-    ppe_recognitions: Mapped[List["PPERecognition"]] = relationship()
+    
+    ppe_recognitions: Mapped[List["PPERecognition"]] = relationship("PPERecognition", back_populates="person_detected")

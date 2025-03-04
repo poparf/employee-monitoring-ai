@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flaskr.middlewares.AuthMiddleware import auth_required
-from flaskr.db import get_db
+from flaskr.db import get_users_db as get_db
 from flaskr.entities.Employee import Employee
 from flaskr.ML.face_recognition import face_recognition_impl 
 import numpy as np

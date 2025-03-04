@@ -2,8 +2,8 @@ import jwt
 from functools import wraps
 from flask import request, abort, g
 from flask import current_app as app
-from flaskr.db import get_db
-from flaskr.entities.User import User
+from flaskr.db import get_users_db as get_db
+from flaskr.entities.auth_db.User import User
 
 def auth_required(f):
     @wraps(f)
