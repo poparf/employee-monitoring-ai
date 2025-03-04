@@ -147,18 +147,19 @@ def login():
         try:
             # TODO: Set token expiration and refresh
             token = jwt.encode({
-                    "user_id": user.id,
-                    "tenant_id": getattr(user, 'tenant_id', None),
+                    "user_id": str(user.id),
+                    "tenant_id": str(user.tenant_id),
                     "roles":[role.name for role in user.roles]
                 },
                 app.config["JWT_SECRET"],
                 algorithm="HS256"
             )
-
+            print("S-a putu parsa in jwt")
             return jsonify({"token": token, "user": {
                 "id": user.id,
                 "email": user.email,
-                "phoneNumber": user.phoneNumber
+                "phoneNumber": user.phoneNumber,
+                "tenant_id": user.tenant_id,
             }}), 200
         except Exception as e:
             print(e)

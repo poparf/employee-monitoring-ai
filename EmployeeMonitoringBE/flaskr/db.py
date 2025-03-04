@@ -32,9 +32,9 @@ def setup_users_db(app):
     if not database_exists(engine.url):
         create_database(engine.url)
     
-    print("dropping auth db")
     
-    AuthBaseEntity.metadata.drop_all(bind=engine)
+    #print("dropping auth db")
+    #AuthBaseEntity.metadata.drop_all(bind=engine)
     AuthBaseEntity.metadata.create_all(bind=engine)
     
     with registry_lock:
