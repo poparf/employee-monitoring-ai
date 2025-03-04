@@ -15,4 +15,4 @@ class Role(AuthBaseEntity):
     name: Mapped[str] = mapped_column(String(50), nullable=False)
 
     # Relationships
-    permissions: Mapped[List["Permission"]] = relationship(secondary="roles_permission")
+    permissions: Mapped[List["Permission"]] = relationship(secondary="roles_permissions")
