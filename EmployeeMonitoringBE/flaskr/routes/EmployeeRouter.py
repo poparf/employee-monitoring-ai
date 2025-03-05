@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app as app
 from flaskr.middlewares.PermissionMiddleware import permission_required
 from flaskr.db import get_tenant_db
 from flaskr.entities.Employee import Employee
@@ -32,10 +32,9 @@ def create_employee():
         if not department:
             return jsonify({"message": "Department is required"}), 400
 
-
-        profile_picture.save(os.path.join("flaskr/static/profile_pictures", f"{firstName}_{lastName}.png"))
-        encoded_face = face_recognition_impl.encode_picture(os.path.join("flaskr/static/profile_pictures", f"{firstName}_{lastName}.png"))
-        
+        #profile_picture.save(os.path.join("flaskr/static/profile_pictures", f"{firstName}_{lastName}.png"))
+        profile_picture.save(f"{app.config["PROFILE_PICTURES_PATH"]}/{firstName}_{lastName}.png")
+        encoded_face = face_recognition_impl.encode_picture(f"{app.config["PROFILE_PICTURES_PATH"]}/{firstName}_{lastName}.png")
         db = get_tenant_db()
         employee = Employee(
             firstName = firstName,
@@ -44,7 +43,7 @@ def create_employee():
             role = role,
             department = department,
             encodedFace = encoded_face.tostring(),
-            profilePicture = f"static/profile_pictures/{firstName}_{lastName}.png"
+            profilePicture = f"{app.config["PROFILE_PICTURES_PATH"]}/{firstName}_{lastName}.png"
         )# TODO: Take into account that people might have the same name
         db.add(employee)
         db.flush()

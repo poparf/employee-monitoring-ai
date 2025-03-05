@@ -13,8 +13,11 @@ def create_app(test_config=None):
         GENERAL_DATABASE_URL = os.getenv("GENERAL_DATABASE_URL"),
         USERS_DATABASE_URL = os.getenv("USERS_DATABASE_URL"),
         # Folder settings
-        UPLOAD_FOLDER = os.path.join(app.instance_path, 'assets/profile_pictures'),
+        PROFILE_PICTURES_PATH = os.path.join(app.instance_path, 'assets/profile_pictures'),
+        MASK_ZONES_PATH = os.path.join(app.instace_path, 'assets/mask_zones')
         ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg']
+
+
     )
 
     if test_config is None:
