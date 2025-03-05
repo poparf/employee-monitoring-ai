@@ -80,7 +80,7 @@ def get_users_db() -> RoutingSession:
 
     return g.users_db_session
 
-def get_tenant_db():
+def get_tenant_db() -> RoutingSession:
     """Get appropriate database session based on current tenant"""
     if 'tenant_db_session' not in g:
         tenant_id = g.get('tenant_id')            

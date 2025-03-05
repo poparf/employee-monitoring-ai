@@ -5,5 +5,5 @@ from flaskr.entities.Employee import Employee
 from flaskr.entities.PPERecognition import PPERecognition
 from flaskr.entities.Alert import Alert
 from flaskr.entities.Zone import Zone
-from flaskr.entities.AllowedList import AllowedList
+from flaskr.entities.Blacklist import Blacklist
 from flaskr.entities.PersonDetected import PersonDetected

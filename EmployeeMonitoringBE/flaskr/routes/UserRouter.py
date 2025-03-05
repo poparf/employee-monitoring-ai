@@ -3,7 +3,7 @@ from flaskr.entities.auth_db.User import User
 from flaskr.db import get_users_db
 from flaskr.entities.auth_db.EmailCodes import EmailCodes
 from flaskr.entities.auth_db.Role import Role
-from flaskr.auth import check_password, hash_password
+from flaskr.services.AuthService import check_password, hash_password
 import re
 from flaskr.services.EmailService import get_email_service
 import flaskr.services.CodeGenerator as CodeGenerator

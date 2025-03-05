@@ -3,14 +3,9 @@ from enum import Enum
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship
 
-class AllowedListStatus(Enum):
-    allowed = "allowed"
-    not_allowed = "not_allowed"
-
-class AllowedList(Entity):
-    __tablename__ = "allowed_lists"
+class Blacklist(Entity):
+    __tablename__ = "Blacklist"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    status: Mapped[AllowedListStatus] = mapped_column()
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"))
     zone_id: Mapped[int] = mapped_column(ForeignKey("zones.id"))

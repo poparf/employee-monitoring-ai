@@ -13,5 +13,5 @@ class Zone(Entity):
     mask: Mapped[str] = mapped_column()
 
     video_camera_id: Mapped[int] = mapped_column(ForeignKey("video_cameras.id"))
-    allowed_lists: Mapped[List["AllowedList"]] = relationship()
+    blacklist: Mapped[List["Blacklist"]] = relationship()
 

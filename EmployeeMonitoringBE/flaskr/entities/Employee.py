@@ -18,4 +18,4 @@ class Employee(Entity):
 
     detection_list: Mapped[List["PersonDetected"]] = relationship()
     alerts: Mapped[List["Alert"]] = relationship() 
-    allowed_lists: Mapped[List["AllowedList"]] = relationship()
+    blacklist: Mapped[List["Blacklist"]] = relationship()
