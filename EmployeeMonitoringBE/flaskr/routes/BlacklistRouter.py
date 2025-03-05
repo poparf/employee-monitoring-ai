@@ -68,3 +68,33 @@ def create_blacklist(current_user):
     except Exception as e:
         app.logger.error(e)
         return {"message": "Something went wrong"}, 500
+
+@bp.route("/", methods=["DELETE"])
+@permission_required("DELETE_BLACKLIST")
+def delete_blacklist(current_user):
+    try:
+        data = request.get_json()
+        message, code = validate_data(data)
+        if code == 400:
+            return message, code
+
+        employees_ids = data["employees"]
+        zone_id = data["zone_id"]
+
+        db = get_tenant_db()
+
+        employees = db.query(Employee.id).filter(Employee.id.in_(employees_ids), zone_id=zone_id).all()
+        # TODO: Asigura-te ca merg cum trebuie liniile urmatore de cod
+        correct_employee_ids = {employee.id for employee in employees}
+        wrong_employees = set(employees_ids) - correct_employee_ids
+
+        if wrong_employees:
+            return {"message": "Some employee ids are wrong", "employees": list(wrong_employees)}, 400
+
+        db.query(Blacklist).filter(Blacklist.employee_id.in_(correct_employee_ids), Blacklist.zone_id == zone_id).delete(synchronize_session=False)
+        db.commit()
+
+        return {"message": "Blacklist deleted successfully"}, 200
+    except Exception as e:
+        app.logger.error(e)
+        return {"message": "Something went wrong"}, 500
