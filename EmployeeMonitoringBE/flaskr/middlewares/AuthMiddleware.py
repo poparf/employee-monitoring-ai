@@ -2,7 +2,7 @@ import jwt
 from functools import wraps
 from flask import request, abort, g
 from flask import current_app as app
-from flaskr.db import get_users_db as get_db
+from flaskr.db import get_users_db
 from flaskr.entities.auth_db.User import User
 
 def auth_required(f):
@@ -17,10 +17,8 @@ def auth_required(f):
             }, 401
         try:
             data = jwt.decode(token, app.config["JWT_SECRET"], algorithms=["HS256"])
-            db = get_db()
-        
-            logged_user = db.query(User).filter_by(id=data["user"]["id"]).first()
-            
+            db = get_users_db()
+            logged_user = db.query(User).filter_by(id=data["user_id"]).first()
             if logged_user == None:
                 return {
                     "message": "Invalid token",

@@ -69,13 +69,15 @@ def setup_tenant_db(tenant_id):
             bind=engine,
             class_=RoutingSession
         )
-    print("setup_tenant_db -> engine registry:", engine_registry)
+    app.logger.info("Tenant database created: %s", tenant_id)
+    app.logger.info("Session registry: ", session_factory_registry)
 
-def get_users_db():
+def get_users_db() -> RoutingSession:
     """Get central users database session"""
     if 'users_db_session' not in g:
         g.users_db_session = session_factory_registry['users']()
     print("Get_users_db() -> session_registry: ", session_factory_registry)
+
     return g.users_db_session
 
 def get_tenant_db():

@@ -16,7 +16,7 @@ class User(AuthBaseEntity):
     email: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     password: Mapped[str] = mapped_column(String(100), nullable=False)
     phoneNumber: Mapped[str] = mapped_column(String(15), nullable=True)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), nullable=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Relationships

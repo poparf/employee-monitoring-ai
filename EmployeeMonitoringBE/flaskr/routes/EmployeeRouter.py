@@ -1,16 +1,14 @@
 from flask import Blueprint, request, jsonify
-from flaskr.middlewares.AuthMiddleware import auth_required
-from flaskr.db import get_users_db as get_db
+from flaskr.middlewares.PermissionMiddleware import permission_required
+from flaskr.db import get_tenant_db
 from flaskr.entities.Employee import Employee
 from flaskr.ML.face_recognition import face_recognition_impl 
-import numpy as np
-from PIL import Image
 import os
 
 bp = Blueprint("employees", __name__, url_prefix="/employees")
 
 @bp.route("/", methods=["POST"])
-#@auth_required
+@permission_required("CREATE_EMPLOYEE")
 def create_employee():
     try:
         if "profile-picture" not in request.files:
@@ -38,7 +36,7 @@ def create_employee():
         profile_picture.save(os.path.join("flaskr/static/profile_pictures", f"{firstName}_{lastName}.png"))
         encoded_face = face_recognition_impl.encode_picture(os.path.join("flaskr/static/profile_pictures", f"{firstName}_{lastName}.png"))
         
-        db = get_db()
+        db = get_tenant_db()
         employee = Employee(
             firstName = firstName,
             lastName = lastName,
@@ -68,10 +66,9 @@ def create_employee():
 # TODO: Pagination/sorting can be implemented 
 # Get all employees
 @bp.route("/", methods=["GET"])
-#@auth_required
 def get_all_employees():
     try:
-        db = get_db()
+        db = get_tenant_db()
         employees = db.query(Employee).all()
         return jsonify([{
             "id": employee.id,

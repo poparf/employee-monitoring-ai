@@ -1,80 +1,116 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from flaskr.entities.auth_db.User import User
 from flaskr.db import get_users_db
 from flaskr.entities.auth_db.EmailCodes import EmailCodes
+from flaskr.entities.auth_db.Role import Role
 from flaskr.auth import check_password, hash_password
 import re
 from flaskr.services.EmailService import get_email_service
 import flaskr.services.CodeGenerator as CodeGenerator
 import jwt
 from threading import Timer
-from flaskr.entities.auth_db.Tenant import Tenant
 from flask import current_app as app
+from flaskr.middlewares.RoleMiddleware import role_required
 
 bp = Blueprint("users", __name__, url_prefix="/users")
+
+
+def validate_new_user_data(data):
+    # Validate data existance
+        if data == None:
+            return jsonify({"message": "No data provided"}), 400
+        
+        if "email" not in data:
+            return jsonify({"message": "Email is required"}), 400
+        
+        if "password" not in data:
+            return jsonify({"message": "Password is required"}), 400
+        
+        if "phoneNumber" not in data:
+            return jsonify({"message": "Phone number is required"}), 400
+
+        # Validate email
+        email = data.get("email")    
+        if re.match( r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email) == None:
+            return jsonify({"message": "Invalid email format"}), 400
+        # Validate password
+        password = data.get("password")
+        if len(password) < 8:
+            return jsonify({"message": "Password must be at least 8 characters long"}), 400
+
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+            return jsonify({"message": "Password must contain at least one special character"}), 400
+
+        if not re.search(r"\d", password):
+            return jsonify({"message": "Password must contain at least one number"}), 400
+
+        # Validate phone number
+        phoneNumber = data.get("phoneNumber")
+        if not re.search(r"^[0-9]{10}$", phoneNumber): # Only romanian
+            return jsonify({"message": "Invalid phone number"}), 400
+
+        return None, 200
+
+@bp.route("/register-security-guard", methods=["POST"])
+@role_required("ADMIN")
+def register_security_guard(current_user):
+    try:
+        data = request.get_json()
+        message, code = validate_new_user_data(data)
+        if code == 400:
+            return message, code
+        email = data["email"]
+        password = data["password"]
+        phoneNumber = data["phoneNumber"]
+
+        db = get_users_db()
+        user = db.query(User).filter_by(email=email).first()
+        if user != None:
+            return jsonify({"message": "Email already in use"}), 400
+        
+        hashedPassword = hash_password(password)
+        user = User(email=email, password=hashedPassword, phoneNumber=phoneNumber, tenant_id=g.tenant_id)
+        user.roles.append(db.query(Role).filter_by(name="SECURITY").first())
+        db.add(user)
+        db.flush()
+        db.commit()
+        return {"message": "User created successfully", "user": {
+            "id": user.id,
+            "email": user.email,
+            "phoneNumber": user.phoneNumber,
+            "tenant_id": user.tenant_id,
+            "role": "SECURITY"
+            }}, 201
+    except Exception as e:
+        app.logger.error(e)
+        return jsonify({"message": "Something went wrong"}), 500
 
 @bp.route("/register", methods=["POST"])
 def register():
     data = request.get_json()
+    message, code = validate_new_user_data(data)
+    if code == 400:
+        return message, code
+    email = data["email"]
+    password = data["password"]
+    phoneNumber = data["phoneNumber"]
     
-    # Validate data existance
-    if data == None:
-        return jsonify({"message": "No data provided"}), 400
-    
-    if "email" not in data:
-        return jsonify({"message": "Email is required"}), 400
-    
-    if "password" not in data:
-        return jsonify({"message": "Password is required"}), 400
-    
-    if "phoneNumber" not in data:
-        return jsonify({"message": "Phone number is required"}), 400
-    if "tenant_id" not in data:
-        return jsonify({"message": "Tenant id is required"}), 400
-
-    # Validate email
-    email = data.get("email")    
-    if re.match( r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email) == None:
-        return jsonify({"message": "Invalid email format"}), 400
-    # Validate password
-    password = data.get("password")
-    if len(password) < 8:
-        return jsonify({"message": "Password must be at least 8 characters long"}), 400
-
-    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
-        return jsonify({"message": "Password must contain at least one special character"}), 400
-
-    if not re.search(r"\d", password):
-        return jsonify({"message": "Password must contain at least one number"}), 400
-
-    # Validate phone number
-    phoneNumber = data.get("phoneNumber")
-    if not re.search(r"^[0-9]{10}$", phoneNumber): # Only romanian
-        return jsonify({"message": "Invalid phone number"}), 400
-
-
     db = get_users_db()
-    print("Got back users db")
-    
-    tenant_id = data.get("tenant_id")
-    if db.query(Tenant).filter_by(id=tenant_id).first() == None:
-        return jsonify({"message": "Invalid tenant id"}), 400
-    
     user = db.query(User).filter_by(email=email).first()
     if user != None:
         return jsonify({"message": "Email already in use"}), 400
     
     hashedPassword = hash_password(password)
-    user = User(email=email, password=hashedPassword, phoneNumber=phoneNumber, tenant_id=tenant_id)
+    user = User(email=email, password=hashedPassword, phoneNumber=phoneNumber)
+    user.roles.append(db.query(Role).filter_by(name="ADMIN").first())
     db.add(user)
     db.flush()  # Ensure the user ID is generated
     code = CodeGenerator.generate_email_verification_code()
     emailVerification = EmailCodes(user_id=user.id, code=code)
     db.add(emailVerification)
     db.commit()
-    # send mail
+
     get_email_service().send_code_verification(email, code)
-    # delete email verification after 5 minutes
     Timer(60 * 5, delete_expired_timer_email_verification, [db, user, emailVerification]).start()
     return jsonify({"message": "Please verify your email in maximum 5 minutes.","user": {"id": user.id, "email": user.email}}), 201
 
@@ -154,7 +190,6 @@ def login():
                 app.config["JWT_SECRET"],
                 algorithm="HS256"
             )
-            print("S-a putu parsa in jwt")
             return jsonify({"token": token, "user": {
                 "id": user.id,
                 "email": user.email,
@@ -162,8 +197,8 @@ def login():
                 "tenant_id": user.tenant_id,
             }}), 200
         except Exception as e:
-            print(e)
+            app.logger.error(e)
             return jsonify({"message": "Something went wrong"}), 500
-    except Exception as e:
-        print(e)
+    except Exception as e:   
+        app.logger.error(e)
         return jsonify({"message": "Something went wrong"}), 500

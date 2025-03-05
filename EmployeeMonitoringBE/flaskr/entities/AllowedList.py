@@ -14,6 +14,3 @@ class AllowedList(Entity):
     status: Mapped[AllowedListStatus] = mapped_column()
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"))
     zone_id: Mapped[int] = mapped_column(ForeignKey("zones.id"))
-
-    employee = relationship("Employee", back_populates="allowed_lists")
-    zone = relationship("Zone", back_populates="allowed_lists")
