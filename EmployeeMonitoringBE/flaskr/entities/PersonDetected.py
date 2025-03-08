@@ -15,3 +15,6 @@ class PersonDetected(Entity):
     video_camera_id: Mapped[int] = mapped_column(ForeignKey("video_cameras.id"))
     
     ppe_recognitions: Mapped[List["PPERecognition"]] = relationship()
+
+    def to_dict(self):
+        return {column.name: getattr(self, column.name) for column in self.__table__.columns}

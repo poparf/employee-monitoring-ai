@@ -1,9 +1,9 @@
 from flask import current_app as app, Blueprint, request, Response, g
+from flask import current_app as app
 from flaskr.db import get_tenant_db, get_users_db
 from flaskr.middlewares.PermissionMiddleware import permission_required
 from flaskr.entities.VideoCamera import VideoCamera
 from flaskr.entities.auth_db.User import User
-from flask_cors import cross_origin
 import re
 import jwt
 import cv2 as cv
@@ -35,6 +35,7 @@ def validate_token(token):
         
         # Set the tenant database such that it will query that specific one
         g.tenant_id = logged_user.tenant_id
+        return logged_user, 200
         
 
 
@@ -93,8 +94,13 @@ def create_video_camera(current_user):
 
 # query parameters: face_recognition, person_detection, ppe_recognition
 @bp.route("/<string:camera_name>/stream", methods=["GET"])
-@permission_required("READ_VIDEO_STREAM")
-def get_camera(current_user, camera_name):
+#@permission_required("READ_VIDEO_STREAM")
+def get_camera(camera_name):
+    res, code = validate_token(request.args.get("token"))
+    if code == 400:
+        return res, code
+    current_user = res
+
     db = get_tenant_db()
     camera = db.query(VideoCamera).filter_by(name=camera_name).first()
     if not camera:
@@ -103,7 +109,6 @@ def get_camera(current_user, camera_name):
     
     # Here the RTSP stream should be read and returned
     rtsp_url = f"rtsp://{camera.username}:{camera.password}@{camera.ip}:{camera.port}/stream2"
-    # rtsp_url ="rtsp://robert037:emonitoringai037!@192.168.1.25:554/stream1"
     cap = cv.VideoCapture(rtsp_url)
     if not cap.isOpened():
         return {"message": "Could not open stream"}, 500

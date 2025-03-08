@@ -72,8 +72,8 @@
             const statusDiv = document.getElementById('status');
             
             let streamActive = false;
-            const API_URL = 'http://127.0.0.1:5000/video-cameras/TAPO%20C310%20HOME%20CAMERA/stream';
             const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZWZiZmZmNTAtMmUwZi00OTUzLTg3ZTUtYmQ0NTFjZDU0Nzg1IiwidGVuYW50X2lkIjoiMzQ0ZGMxNDAtNDdlZC00ODFhLWFiYTMtZTQ1YzI4NDBkYTE2Iiwicm9sZXMiOlsiU1VQRVJBRE1JTiJdfQ.VcMEZGd6DBk2MWJnYpb589NMDaAZZFhosxgYDHc5ICw'; // You would get this from login
+            const API_URL = `http://127.0.0.1:5000/video-cameras/TAPO%20C310%20HOME%20CAMERA/stream?token=${AUTH_TOKEN}`;
             
             // Method 1: Direct IMG src approach
             function connectStreamDirect() {
