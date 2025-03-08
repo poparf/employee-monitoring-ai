@@ -7,3 +7,5 @@ os
 dotenv
 face_recognition
 sqlalchemy-utils
+opencv
+flask_cors

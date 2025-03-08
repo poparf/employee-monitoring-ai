@@ -56,7 +56,7 @@ def setup_tenant_db(tenant_id):
     
     if not database_exists(engine.url):
         create_database(engine.url)
-    print("Created database")
+        print("Created database")
     #Create tables for tenant-specific schema
     Entity.metadata.bind = engine
     Entity.metadata.create_all(bind=engine)

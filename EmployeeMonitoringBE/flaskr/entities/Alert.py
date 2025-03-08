@@ -36,3 +36,6 @@ class Alert(Entity):
 
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"))
     zone_id: Mapped[int] = mapped_column(ForeignKey("zones.id"))
+
+    def to_dict(self):
+         return {column.name: getattr(self, column.name) for column in self.__table__.columns}
