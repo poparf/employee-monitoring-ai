@@ -1,7 +1,7 @@
 from flaskr.entities.BaseEntity import Entity, mapped_column, Mapped
+from sqlalchemy import LargeBinary
 from typing import List
 from sqlalchemy.orm import relationship
-
 
 class Employee(Entity):
     __tablename__ = "employees"
@@ -13,7 +13,7 @@ class Employee(Entity):
     role: Mapped[str] = mapped_column()
     department: Mapped[str] = mapped_column()
     
-    encodedFace: Mapped[str] = mapped_column()
+    encodedFace: Mapped[LargeBinary] = mapped_column(LargeBinary)
     profilePicture: Mapped[str] = mapped_column()
 
     detection_list: Mapped[List["PersonDetected"]] = relationship()

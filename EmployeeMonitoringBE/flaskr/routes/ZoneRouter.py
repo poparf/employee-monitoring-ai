@@ -32,7 +32,7 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config["ALLOWED_EXTENSIONS"]
 
-@bp.route("/", methods="POST")
+@bp.route("/", methods=["POST"])
 @permission_required("CREATE_ZONE")
 def create_zone(current_user):
     try:

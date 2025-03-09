@@ -23,6 +23,5 @@ class VideoCamera(Entity):
 
     status: Mapped[CameraStatus] = mapped_column()
 
-    ppe_recognitions: Mapped[List["PPERecognition"]] = relationship()
     persons_detected: Mapped[List["PersonDetected"]] = relationship()
     zones: Mapped[List["Zone"]] = relationship()

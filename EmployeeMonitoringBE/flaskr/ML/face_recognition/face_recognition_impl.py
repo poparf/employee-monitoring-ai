@@ -17,3 +17,6 @@ def encode_picture(image):
 # Func2:
 # Recognize the face of an employee
 # Extract the encoded part from the db
+# employees is a list of employees
+def recognize_faces(image, employees: list):
+    pass

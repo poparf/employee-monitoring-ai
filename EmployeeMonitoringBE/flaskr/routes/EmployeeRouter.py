@@ -3,13 +3,14 @@ from flaskr.middlewares.PermissionMiddleware import permission_required
 from flaskr.db import get_tenant_db
 from flaskr.entities.Employee import Employee
 from flaskr.ML.face_recognition import face_recognition_impl 
-import os
+import numpy as np
+import io
 
 bp = Blueprint("employees", __name__, url_prefix="/employees")
 
 @bp.route("/", methods=["POST"])
 @permission_required("CREATE_EMPLOYEE")
-def create_employee():
+def create_employee(current_user):
     try:
         if "profile-picture" not in request.files:
             return jsonify({"message": "No file provided"}), 400
@@ -33,16 +34,21 @@ def create_employee():
             return jsonify({"message": "Department is required"}), 400
 
         #profile_picture.save(os.path.join("flaskr/static/profile_pictures", f"{firstName}_{lastName}.png"))
-        profile_picture.save(f"{app.config["PROFILE_PICTURES_PATH"]}/{firstName}_{lastName}.png")
-        encoded_face = face_recognition_impl.encode_picture(f"{app.config["PROFILE_PICTURES_PATH"]}/{firstName}_{lastName}.png")
+        profile_picture.save(f"{app.config["PROFILE_PICTURES_PATH"]}\\{firstName}_{lastName}.png")
+        encoded_face = face_recognition_impl.encode_picture(f"{app.config["PROFILE_PICTURES_PATH"]}\\{firstName}_{lastName}.png")
         db = get_tenant_db()
+
+        byte_io = io.BytesIO()
+        np.save(byte_io, encoded_face)
+    
+
         employee = Employee(
             firstName = firstName,
             lastName = lastName,
             phoneNumber = phoneNumber,
             role = role,
             department = department,
-            encodedFace = encoded_face.tostring(),
+            encodedFace = byte_io.getvalue(), # TODO: Maybe don't store the whole path of the profile picture
             profilePicture = f"{app.config["PROFILE_PICTURES_PATH"]}/{firstName}_{lastName}.png"
         )# TODO: Take into account that people might have the same name
         db.add(employee)

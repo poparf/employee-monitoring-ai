@@ -15,8 +15,10 @@ def create_app(test_config=None):
         GENERAL_DATABASE_URL = os.getenv("GENERAL_DATABASE_URL"),
         USERS_DATABASE_URL = os.getenv("USERS_DATABASE_URL"),
         # Folder settings
-        PROFILE_PICTURES_PATH = os.path.join(app.instance_path, 'assets/profile_pictures'),
-        MASK_ZONES_PATH = os.path.join(app.instance_path, 'assets/mask_zones'),
+        
+
+        PROFILE_PICTURES_PATH = os.path.join(app.root_path, 'static\\profile_pictures'),
+        MASK_ZONES_PATH = os.path.join(app.root_path, 'static\\mask_zones'),
         ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg']
     )
 
