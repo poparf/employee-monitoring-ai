@@ -10,8 +10,18 @@ import cv2 as cv
 import numpy as np
 import face_recognition
 import io
+from threading import Thread, Lock
+import time
 
 bp = Blueprint("video-cameras", __name__, url_prefix="/video-cameras")
+
+# camera_name: 
+# {"frame": current_frame,
+#  "clients": count,
+#  "thread": thread,
+#  "last_access": timestamp}
+active_cameras = {}  # camera_name: {"frame": bytes, "clients": count, "running": bool}
+camera_locks = {}    # camera_name: Lock
 
 # def is_valid_ip(ip):
 #     pattern = re.compile(
@@ -24,13 +34,9 @@ def is_valid_port(port):
 
 def validate_token(token):
         try:
-            print("Decoding jwt")
             data = jwt.decode(token, app.config["JWT_SECRET"], algorithms=["HS256"])
-            print("Decoded jwt")
             db = get_users_db()
-            print("Querying user")
             logged_user = db.query(User).filter_by(id=data["user_id"]).first()
-            print("Logged user: ", logged_user)
             if logged_user == None:
                 return {
                     "message": "Invalid token",
@@ -42,7 +48,6 @@ def validate_token(token):
             }, 500
         
         # Set the tenant database such that it will query that specific one
-        print(logged_user)
         g.tenant_id = logged_user.tenant_id
         return logged_user, 200
         
@@ -100,12 +105,100 @@ def create_video_camera(current_user):
         print(e)
         return {"message": "Internal server error"}, 500
 
+def process_camera_frames(camera_name, rtsp_url,
+                          face_recognition_filter=False,
+                            person_detection_filter=False,
+                            ppe_recognition_filter=False,
+                            known_face_encodings=[],
+                            known_face_names=[]):
+
+    
+    cap = cv.VideoCapture(rtsp_url)
+    if not cap.isOpened():
+        print(f"Could not open stream for camera: {camera_name}")
+        with camera_locks[camera_name]:
+            active_cameras[camera_name]["running"] = False
+        return
+    
+    process_this_frame = True
+
+    while True:
+        with camera_locks[camera_name]:
+            if active_cameras[camera_name]["clients"] <= 0:
+                active_cameras[camera_name]["running"] = False
+                print(f"No more clients for camera {camera_name}, stopping stream")
+                break
+        
+        success, frame = cap.read()
+        if not success:
+            # Should i break or continue?
+            print(f"Failed to read frame for camera {camera_name}")
+            continue
+        
+        if process_this_frame:
+            try:
+                if face_recognition_filter and known_face_encodings:
+                    # Apply face recognition
+                    small_frame = cv.resize(frame, (0, 0), fx=0.25, fy=0.25)
+                    rgb_small_frame = np.ascontiguousarray(small_frame[:, :, ::-1])
+                    face_locations = face_recognition.face_locations(rgb_small_frame)
+                    face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+                    
+                    face_names = []
+                    for face_encoding in face_encodings:
+                        matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
+                        name = "Unknown"
+                        
+                        if len(known_face_encodings) > 0:
+                            face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
+                            best_match_index = np.argmin(face_distances)
+                            if matches[best_match_index]:
+                                name = known_face_names[best_match_index]
+                        face_names.append(name)
+                    
+                    #Draw boxes around faces
+                    for (top, right, bottom, left), name in zip(face_locations, face_names):
+                        top *= 4
+                        right *= 4
+                        bottom *= 4
+                        left *= 4
+                        cv.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
+                        cv.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv.FILLED)
+                        font = cv.FONT_HERSHEY_DUPLEX
+                        cv.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
+            except Exception as e:
+                print(f"Error in face recognition: {e}")
+            
+            # Add other filter processing as needed
+            if person_detection_filter:
+                # Person detection code
+                pass
+                
+            if ppe_recognition_filter:
+                # PPE recognition code
+                pass
+                
+        process_this_frame = not process_this_frame
+
+        success, jpeg_frame = cv.imencode('.jpg', frame)
+        if not success:
+            print(f"Failed to encode frame for camera: {camera_name}")
+            continue
+
+        frmae_bytes = jpeg_frame.tobytes()
+        with camera_locks[camera_name]:
+            active_cameras[camera_name]["frame"] = frmae_bytes
+
+        cv.waitKey(33)  # 1000 ms / 30 fps = ~33 ms per frame
+    
+    
+    cap.release()
+    print(f"Camera stream for {camera_name} has stopped")
 
 # query parameters: face_recognition, person_detection, ppe_recognition
 @bp.route("/<string:camera_name>/stream", methods=["GET"])
 #@permission_required("READ_VIDEO_STREAM")
 def get_camera(camera_name):
-    print("Called get camera")
     res, code = validate_token(request.args.get("token"))
     if code == 400:
         return res, code
@@ -119,79 +212,75 @@ def get_camera(camera_name):
     if not camera:
         return {"message": "Camera not found"}, 404
     
-    
+    known_face_encodings = []
+    known_face_names = []
+    if face_recognition_filter:
+        try:
+            employees = db.query(Employee).all()
+            known_face_encodings = [np.load(io.BytesIO(employee.encodedFace)) for employee in employees if hasattr(employee, 'encodedFace') and employee.encodedFace]
+            known_face_names = [f"{employee.firstName} {employee.lastName}" for employee in employees if hasattr(employee, 'encodedFace') and employee.encodedFace]
+            print(f"Loaded {len(known_face_encodings)} face encodings for recognition")
+        except Exception as e:
+            print(f"Error loading face data: {e}")
+            return {"message": "Internal server error"}, 500
+
+
     # Here the RTSP stream should be read and returned
-    rtsp_url = f"rtsp://{camera.username}:{camera.password}@{camera.ip}:{camera.port}/stream2"
-    cap = cv.VideoCapture(rtsp_url)
-    if not cap.isOpened():
-        return {"message": "Could not open stream"}, 500
+    #rtsp_url = f"rtsp://{camera.username}:{camera.password}@{camera.ip}:{camera.port}/stream2"
+    rtsp_url = 0
+    if camera_name not in active_cameras:
+        active_cameras[camera_name] = {
+            "frame": None,
+            "clients": 0,
+            "running": False
+        }
+        camera_locks[camera_name] = Lock()
+
+    with camera_locks[camera_name]:
+        active_cameras[camera_name]["clients"] += 1
+        clients = active_cameras[camera_name]["clients"]
+        running = active_cameras[camera_name]["running"]
+
+        print(f"New client connected to camera {camera_name}. Total clients: {clients}")
+
+        if not running:
+            active_cameras[camera_name]["running"] = True
+            process_thread = Thread(target=process_camera_frames,
+                                    args=(camera_name, rtsp_url, face_recognition_filter, person_detection_filter, ppe_recognition_filter,
+                                          known_face_encodings, known_face_names))
+            process_thread.daemon = True
+            process_thread.start()
     
-    employees = db.query(Employee).all()
-    known_face_encodings = [np.load(io.BytesIO(employee.encodedFace)) for employee in employees]
-    known_face_names = [f"{employee.firstName} {employee.lastName}" for employee in employees]
-    print("Known face encodings:", known_face_encodings)
-    def generate_frames():
-        process_this_frame = True
-        while True:
-            success, frame = cap.read()
-            if not success:
-                print("Failed to read frame")
-                break
-            # Now process the frame based on the query parameters
-            # and then encode it into jpeg
-            if process_this_frame:
-                try:
-                    if face_recognition_filter:
-                        face_names = []
-                        # Apply face recognition
-                        small_frame = cv.resize(frame, (0, 0), fx=0.25, fy=0.25)
-                        rgb_small_frame = np.ascontiguousarray(small_frame[:, :, ::-1])
-                        face_locations = face_recognition.face_locations(rgb_small_frame)
-                        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
-                        
-                        for face_encoding in face_encodings:
-                            matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
-                            name = "Unknown"
-
-                            face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
-                            best_match_index = np.argmin(face_distances)
-                            if matches[best_match_index]:
-                                name = known_face_names[best_match_index]
-                            face_names.append(name)
-                        # Draw a box around the face
-                        for (top, right, bottom, left), name in zip(face_locations, face_names):
-                            top *= 4
-                            right *= 4
-                            bottom *= 4
-                            left *= 4
-                            cv.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
-                            cv.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv.FILLED)
-                            font = cv.FONT_HERSHEY_DUPLEX
-                            cv.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
-                except Exception as e:
-                    print(e)
-                    print("Failed to apply face recognition")
-                    break
-                if person_detection_filter:
-                    # Apply person detection
-                    pass
-
-                if ppe_recognition_filter:
-                    # Apply PPE recognition
-                    pass
-            process_this_frame = not process_this_frame
-
-            ######################3
-            success, jpeg_frame = cv.imencode('.jpg', frame)
-            if not success:
-                print("Failed to encode frame")
-                break
-            frame_bytes = jpeg_frame.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n\r\n')
-            cv.waitKey(33)  # 1000 ms / 30 fps = ~33 ms per frame
-
-    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame', headers={
+    def generate_frames_for_client():
+        try:
+            while True:
+                # Check if camera is still running and get current frame
+                with camera_locks[camera_name]:
+                    if not camera_name in active_cameras or not active_cameras[camera_name]["running"]:
+                        break
+                    
+                    frame = active_cameras[camera_name]["frame"]
+                
+                # If we have a frame, yield it
+                if frame is not None:
+                    yield (b'--frame\r\n'
+                          b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
+                else:
+                    # No frame available yet, short wait
+                    time.sleep(0.1)
+                    continue
+                
+                # Small delay to control frame rate to client
+                time.sleep(0.033)  # ~30 fps
+        finally:
+            # Decrement client count when this client disconnects
+            if camera_name in active_cameras and camera_name in camera_locks:
+                with camera_locks[camera_name]:
+                    active_cameras[camera_name]["clients"] -= 1
+                    remaining = active_cameras[camera_name]["clients"]
+                    print(f"Client disconnected from camera {camera_name}. Remaining clients: {remaining}")
+                
+    return Response(generate_frames_for_client(), mimetype='multipart/x-mixed-replace; boundary=frame', headers={
         'Access-Control-Allow-Origin': 'http://127.0.0.1:5500',
         'Access-Control-Allow-Credentials': 'true'
     })
