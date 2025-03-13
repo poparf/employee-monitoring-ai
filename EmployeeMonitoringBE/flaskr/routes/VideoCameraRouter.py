@@ -15,13 +15,9 @@ import time
 
 bp = Blueprint("video-cameras", __name__, url_prefix="/video-cameras")
 
-# camera_name: 
-# {"frame": current_frame,
-#  "clients": count,
-#  "thread": thread,
-#  "last_access": timestamp}
 active_cameras = {}  # camera_name: {"frame": bytes, "clients": count, "running": bool}
 camera_locks = {}    # camera_name: Lock
+
 
 # def is_valid_ip(ip):
 #     pattern = re.compile(
@@ -131,14 +127,12 @@ def process_camera_frames(camera_name, rtsp_url,
         
         success, frame = cap.read()
         if not success:
-            # Should i break or continue?
             print(f"Failed to read frame for camera {camera_name}")
             continue
         
         if process_this_frame:
             try:
                 if face_recognition_filter and known_face_encodings:
-                    # Apply face recognition
                     small_frame = cv.resize(frame, (0, 0), fx=0.25, fy=0.25)
                     rgb_small_frame = np.ascontiguousarray(small_frame[:, :, ::-1])
                     face_locations = face_recognition.face_locations(rgb_small_frame)
@@ -156,7 +150,6 @@ def process_camera_frames(camera_name, rtsp_url,
                                 name = known_face_names[best_match_index]
                         face_names.append(name)
                     
-                    #Draw boxes around faces
                     for (top, right, bottom, left), name in zip(face_locations, face_names):
                         top *= 4
                         right *= 4
@@ -185,27 +178,24 @@ def process_camera_frames(camera_name, rtsp_url,
             print(f"Failed to encode frame for camera: {camera_name}")
             continue
 
-        frmae_bytes = jpeg_frame.tobytes()
+        frame_bytes = jpeg_frame.tobytes()
         with camera_locks[camera_name]:
-            active_cameras[camera_name]["frame"] = frmae_bytes
+            active_cameras[camera_name]["frame"] = frame_bytes
 
-        cv.waitKey(33)  # 1000 ms / 30 fps = ~33 ms per frame
-    
+        cv.waitKey(33)  # 1000 ms / 30 fps = ~33 ms per frame   
     
     cap.release()
     print(f"Camera stream for {camera_name} has stopped")
 
-# query parameters: face_recognition, person_detection, ppe_recognition
 @bp.route("/<string:camera_name>/stream", methods=["GET"])
-#@permission_required("READ_VIDEO_STREAM")
 def get_camera(camera_name):
     res, code = validate_token(request.args.get("token"))
     if code == 400:
         return res, code
     current_user = res
-    face_recognition_filter = request.args.get("face_recognition")
-    person_detection_filter = request.args.get("person_detection")
-    ppe_recognition_filter = request.args.get("ppe_recognition")
+    face_recognition_filter = request.args.get("face_recognition", False)
+    person_detection_filter = request.args.get("person_detection", False)
+    ppe_recognition_filter = request.args.get("ppe_recognition", False)
 
     db = get_tenant_db()
     camera = db.query(VideoCamera).filter_by(name=camera_name).first()
@@ -261,12 +251,10 @@ def get_camera(camera_name):
                     
                     frame = active_cameras[camera_name]["frame"]
                 
-                # If we have a frame, yield it
                 if frame is not None:
                     yield (b'--frame\r\n'
                           b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
                 else:
-                    # No frame available yet, short wait
                     time.sleep(0.1)
                     continue
                 

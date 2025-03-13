@@ -7,7 +7,11 @@
 1. [X] Prepare both projects dependencies and folder structure (FE, BE)
 2. [X] Create the database structure ( PostgreSQL )
 3. [X] Create the models
-3.1 [ ] basic CRUD for them
+3.1 [X] basic CRUD for them
+3.2 [X] I also created vertical scaling through multi tenant app ( each tenant has its own database )
+3.3 [X] I implemented roles and permissions and middlewares for them 
+4. [X] Read RTSP stream
+5. [X] Deliver RTSP stream to FE
 4. [ ] Create a login/register page simple for the begging
 5. [ ] Prepare a few video files, people in an office and a construction site
 6. [ ] JWT Auth like the teacher did at Web Tech ( you can copy that part )
@@ -154,5 +158,12 @@ Entity PPE
 
 1. What is the best way to raise alerts in real time towards the FE (subscriber pattern)
 2. How to differentiate between video streams? Each one should have an unique id
-3. How to get the stream of the TAPO camera into the web browser?
+3. How to get the stream of the TAPO camera into the web browser? done
 https://www.tp-link.com/us/support/faq/2680/
+4. How do i stream to frontend? -> use WebRTC/aiortc
+
+## Fun facts
+1051 lines of code as of today 5/3/2025
+at commit id: c0da60490a58ea256c3e6dabde9541d608faab65
+
+1420 lines - 11/3/2025
