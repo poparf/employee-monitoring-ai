@@ -33,7 +33,9 @@ def validate_token(token):
             data = jwt.decode(token, app.config["JWT_SECRET"], algorithms=["HS256"])
             db = get_users_db()
             logged_user = db.query(User).filter_by(id=data["user_id"]).first()
+            print(logged_user)
             if logged_user == None:
+                print("Invalid token")
                 return {
                     "message": "Invalid token",
                 }, 401
@@ -190,7 +192,7 @@ def process_camera_frames(camera_name, rtsp_url,
 @bp.route("/<string:camera_name>/stream", methods=["GET"])
 def get_camera(camera_name):
     res, code = validate_token(request.args.get("token"))
-    if code == 400:
+    if code != 200:
         return res, code
     current_user = res
     face_recognition_filter = request.args.get("face_recognition", False)

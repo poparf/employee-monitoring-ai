@@ -1,11 +1,11 @@
 flask
 sqlalchemy
-psycopg[binary]
+psycopg2
 pyjwt
 bcrypt
-os
 dotenv
 face_recognition
 sqlalchemy-utils
-opencv
 flask_cors
+opencv-python
+setuptools
