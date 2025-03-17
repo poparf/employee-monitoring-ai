@@ -12,7 +12,7 @@ class Role(AuthBaseEntity):
     __tablename__ = "roles"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
-    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    name: Mapped[str] = mapped_column(nullable=False)
 
     # Relationships
     permissions: Mapped[List["Permission"]] = relationship(secondary="roles_permissions")

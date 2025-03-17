@@ -32,9 +32,6 @@ def setup_users_db(app):
     if not database_exists(engine.url):
         create_database(engine.url)
     
-    
-    #print("dropping auth db")
-    #AuthBaseEntity.metadata.drop_all(bind=engine)
     AuthBaseEntity.metadata.create_all(bind=engine)
     
     with registry_lock:
@@ -51,13 +48,11 @@ def setup_tenant_db(tenant_id):
     app = current_app
     base_url = app.config['GENERAL_DATABASE_URL']
     db_url = f"{base_url}/{tenant_id}"
-    print(db_url)
     engine = create_engine(db_url)
     
     if not database_exists(engine.url):
         create_database(engine.url)
-        print("Created database:", engine.url)
-    #Create tables for tenant-specific schema
+
     Entity.metadata.bind = engine
     Entity.metadata.create_all(bind=engine)
     configure_mappers()
@@ -76,7 +71,6 @@ def get_users_db() -> RoutingSession:
     """Get central users database session"""
     if 'users_db_session' not in g:
         g.users_db_session = session_factory_registry['users']()
-    print("Get_users_db() -> session_registry: ", session_factory_registry)
 
     return g.users_db_session
 

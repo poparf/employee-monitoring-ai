@@ -176,10 +176,10 @@ def login():
 
         db = get_users_db()
         user = db.query(User).filter_by(email=email).first()
-
+        print("got to check password")
         if user == None or not check_password(password, user.password):
             return jsonify({"message": "Invalid email or password."}), 400
-
+        print("Succeded check password")
         try:
             # TODO: Set token expiration and refresh
             token = jwt.encode({

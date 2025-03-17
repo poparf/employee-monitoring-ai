@@ -12,6 +12,7 @@ import face_recognition
 import io
 from threading import Thread, Lock
 import time
+import dlib
 
 bp = Blueprint("video-cameras", __name__, url_prefix="/video-cameras")
 
@@ -110,8 +111,12 @@ def process_camera_frames(camera_name, rtsp_url,
                             known_face_encodings=[],
                             known_face_names=[]):
 
-    
+    cuda_available = dlib.DLIB_USE_CUDA
+    print(f"CUDA available: {cuda_available}")
+
     cap = cv.VideoCapture(rtsp_url)
+    # Reduced buffer size: solution 1
+    cap.set(cv.CAP_PROP_BUFFERSIZE, 2)
     if not cap.isOpened():
         print(f"Could not open stream for camera: {camera_name}")
         with camera_locks[camera_name]:
@@ -137,7 +142,7 @@ def process_camera_frames(camera_name, rtsp_url,
                 if face_recognition_filter and known_face_encodings:
                     small_frame = cv.resize(frame, (0, 0), fx=0.25, fy=0.25)
                     rgb_small_frame = np.ascontiguousarray(small_frame[:, :, ::-1])
-                    face_locations = face_recognition.face_locations(rgb_small_frame)
+                    face_locations = face_recognition.face_locations(rgb_small_frame, model="cnn")
                     face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
                     
                     face_names = []
@@ -184,8 +189,8 @@ def process_camera_frames(camera_name, rtsp_url,
         with camera_locks[camera_name]:
             active_cameras[camera_name]["frame"] = frame_bytes
 
-        cv.waitKey(33)  # 1000 ms / 30 fps = ~33 ms per frame   
-    
+        cv.waitKey(1)
+        
     cap.release()
     print(f"Camera stream for {camera_name} has stopped")
 
@@ -218,8 +223,8 @@ def get_camera(camera_name):
 
 
     # Here the RTSP stream should be read and returned
-    #rtsp_url = f"rtsp://{camera.username}:{camera.password}@{camera.ip}:{camera.port}/stream2"
-    rtsp_url = 0
+    rtsp_url = f"rtsp://{camera.username}:{camera.password}@{camera.ip}:{camera.port}/stream2"
+    #rtsp_url = 0
     if camera_name not in active_cameras:
         active_cameras[camera_name] = {
             "frame": None,
@@ -260,8 +265,7 @@ def get_camera(camera_name):
                     time.sleep(0.1)
                     continue
                 
-                # Small delay to control frame rate to client
-                time.sleep(0.033)  # ~30 fps
+                time.sleep(0.066) # ~ 15 fps
         finally:
             # Decrement client count when this client disconnects
             if camera_name in active_cameras and camera_name in camera_locks:
