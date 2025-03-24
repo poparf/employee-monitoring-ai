@@ -15,7 +15,7 @@ class User(AuthBaseEntity):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
     email: Mapped[str] = mapped_column(nullable=False, unique=True)
-    password: Mapped[bytearray] = mapped_column(LargeBinary, nullable=False)
+    password: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     phoneNumber: Mapped[str] = mapped_column(nullable=True)
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), nullable=True)
     is_verified: Mapped[bool] = mapped_column(default=False)

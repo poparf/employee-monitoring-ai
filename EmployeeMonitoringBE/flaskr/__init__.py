@@ -28,7 +28,9 @@ def create_app(test_config=None):
 
     # from flaskr.init_auth_db import init_auth_db
     # with app.app_context():
+        
     #     init_auth_db(app)
+
 
     return app
 

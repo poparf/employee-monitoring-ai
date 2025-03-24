@@ -12,6 +12,7 @@
 3.3 [X] I implemented roles and permissions and middlewares for them 
 4. [X] Read RTSP stream
 5. [X] Deliver RTSP stream to FE
+5.1 [ ] Read about JWT and how to handle the token with COOKIES!!!
 4. [ ] Create a login/register page simple for the begging
 5. [ ] Prepare a few video files, people in an office and a construction site
 6. [ ] JWT Auth like the teacher did at Web Tech ( you can copy that part )
@@ -34,7 +35,7 @@
         - Employee attendance based on face recognition
         - Most frequently visited zones
         - Average response time to alerts
-15. [ ] Extra: create 2 separate type of accounts to leverage permissions -> one is administrator full access -> other is security personell -> cannot modifiy settings
+15. [X] Extra: create 2 separate type of accounts to leverage permissions -> one is administrator full access -> other is security personell -> cannot modifiy settings
 
 
 ### Database structure
@@ -153,6 +154,11 @@ Entity PPE
 2. Frontend
    - React
    - Tailwind
+
+## Facts
+
+The videostream is processed only when clients ( from frontend ) are connected to the stream
+Normally, the stream should be processed at all time
 
 ## Questions
 

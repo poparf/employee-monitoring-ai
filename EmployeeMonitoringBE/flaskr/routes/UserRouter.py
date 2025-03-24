@@ -156,6 +156,21 @@ def verify_email():
     db.commit()
     return jsonify({"message": "Email verified"}), 200
 
+@bp.route("/check-email", methods=["POST"])
+def check_email():
+    try:
+        data = request.get_json()
+        db = get_users_db()
+        
+        user = db.query(User).filter_by(email=data.get("email")).first()
+        if user == None:
+            return jsonify({"exists": False}), 200
+        else:
+            return jsonify({"exists": True}), 200
+    except Exception as e:
+        app.logger.error(e)
+        return jsonify({"message": "Something went wrong"}), 500
+
 @bp.route("/login", methods=["POST"])
 def login():
     try:
