@@ -4,14 +4,16 @@ import { Link, useNavigate } from "react-router"; // Use react-router-dom if app
 import axios from "axios";
 import { SERVER_URL } from "../../utils/constants";
 import { useState } from "react";
-import { CiUser } from "react-icons/ci";
-
+import { CiUser, CiZoomIn } from "react-icons/ci";
+import { useUser } from "../../context/UserContext";
+import { LoadingComponent } from "../loading-component/loading-component";
 
 const Login = () => {
   const [step, setStep] = useState("step1-login");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("")
+  const { login } = useUser()
   const navigate = useNavigate()
 
   const handlePasswordSubmit = async (e) => {
@@ -30,7 +32,7 @@ const Login = () => {
       const res = await axios.post(`${SERVER_URL}/users/login`, {email, password})
       if(res.status == 200) {
         const data = res.data;
-        localStorage.setItem("token", data["token"])
+        login(data["user"], data["token"])
         navigate("/home") 
       } else {
         setError("Password is not correct.")
@@ -38,7 +40,7 @@ const Login = () => {
     } catch(err) {
       console.error(err);
       setError("An error occurred. Please try again.");
-    } finally {
+    } finally {CiZoomIn
       setLoading(false);
     }
   }
@@ -102,7 +104,7 @@ const Login = () => {
               disabled={loading}
             >
               {loading ? "Loading..." : "Continue"}
-            </button>
+              </button>
             <p className="text-neutral-300 text-xs text-center mt-8">
               Don't worry if you don't have an account
               <br />
