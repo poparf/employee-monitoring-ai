@@ -1,14 +1,13 @@
-import background from "../../assets/imgs/login1bg.png";
-import LogoName from "../logo-component/Logo-name-component";
-import { Link, useNavigate } from "react-router"; // Use react-router-dom if applicable
+import background from "../assets/imgs/login1bg.png";
+import LogoName from "../components/LogoComponent";
+import { Link, useNavigate } from "react-router";
 import axios from "axios";
-import { SERVER_URL } from "../../utils/constants";
+import { SERVER_URL } from "../utils/constants";
 import { useState } from "react";
 import { CiUser, CiZoomIn } from "react-icons/ci";
-import { useUser } from "../../context/UserContext";
-import { LoadingComponent } from "../loading-component/loading-component";
+import { useUser } from "../context/UserContext";
 
-const Login = () => {
+const LoginPage = () => {
   const [step, setStep] = useState("step1-login");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -175,4 +174,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default LoginPage;

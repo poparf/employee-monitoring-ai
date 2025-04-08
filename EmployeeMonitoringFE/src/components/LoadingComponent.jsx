@@ -1,4 +1,4 @@
-import loadingAnimation from "../../assets/animations/loading_animation.webm"
+import loadingAnimation from "../assets/animations/loading_animation.webm"
 
 export const LoadingComponent = () => {
     return <div>

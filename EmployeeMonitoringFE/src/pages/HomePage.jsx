@@ -1,9 +1,9 @@
-import { useUser } from "../../context/UserContext";
+import { useUser } from "../context/UserContext";
 
-const Home = () => {
+const HomePage = () => {
     const {logout} = useUser()
     return <div>HOME
         <button onClick={logout}>logout</button>
     </div>
 }
-export default Home;
+export default HomePage;

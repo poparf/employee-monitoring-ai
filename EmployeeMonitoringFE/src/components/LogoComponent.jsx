@@ -1,4 +1,4 @@
-import Logo from "../../assets/logo/Logo_Vision.webp"
+import Logo from '../assets/logo/Logo_Vision.webp'
 
 const LogoName = () => {
     return (

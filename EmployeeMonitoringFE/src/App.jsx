@@ -1,11 +1,15 @@
-import Login from "./components/login-component/step1-login-component.jsx";
+// Pages
+import LoginPage from "./pages/LoginPage.jsx";
+import HomePage from "./pages/HomePage.jsx";
+import AboutPage from "./pages/AboutPage.jsx";
+
 import "./style/main.css";
 import { BrowserRouter, Routes, Route } from "react-router";
-import About from "./components/about-component/About.jsx";
-import { LoginRequiredComponent } from "./components/protected-components/login-required-component/LoginRequiredComponent.jsx";
+import { LoginRequiredComponent } from "./components/protected/LoginRequired.jsx";
 import { useUser } from "./context/UserContext.jsx";
-import Home from "./components/home-component/HomeComponent.jsx";
-import { LoadingComponent } from "./components/loading-component/loading-component.jsx";
+import { LoadingComponent } from "./components/LoadingComponent.jsx";
+import NotFoundPage from "./pages/NotFoundPage.jsx";
+import { AlreadyAuthenticated } from "./components/protected/AlreadyAuthenticated.jsx";
 
 export const App = () => {
   const { isAuthenticated, loading } = useUser();
@@ -29,11 +33,13 @@ export const App = () => {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/about" element={<About />} />
-        <Route path="/loading" element={<LoadingComponent/>}/>
-        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<NotFoundPage isAuthenticated={isAuthenticated()}/>}/>
+        <Route path="/about" element={<AboutPage />} />
+        <Route element={<AlreadyAuthenticated isAuthenticated={isAuthenticated()} />}>
+          <Route path="/login" element={<LoginPage />} />
+        </Route>
         <Route element={<LoginRequiredComponent isAuthenticated={isAuthenticated()} />}>
-          <Route path="/home" element={<Home />} />
+          <Route path="/home" element={<HomePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

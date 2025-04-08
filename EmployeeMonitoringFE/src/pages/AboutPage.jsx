@@ -1,6 +1,4 @@
-import background from "../../assets/imgs/login1bg.png";
-
-const About = () => {
+const AboutPage = () => {
     return <div
     style={{
         backgroundColor: "#2C2C2C",
@@ -19,4 +17,4 @@ const About = () => {
 </div>
 }
 
-export default About;
+export default AboutPage;
