@@ -12,6 +12,10 @@ const LoginPage = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [phoneNumber, setPhoneNumber] = useState("")
+  const [organization, setOrganization] = useState("")
+
   const { login } = useUser()
   const navigate = useNavigate()
 
@@ -32,7 +36,7 @@ const LoginPage = () => {
       if(res.status == 200) {
         const data = res.data;
         login(data["user"], data["token"])
-        navigate("/home") 
+        navigate("/dashboard") 
       } else {
         setError("Password is not correct.")
       }
@@ -49,7 +53,6 @@ const LoginPage = () => {
     setError(""); // reset error state
     const formData = new FormData(e.target);
     const email = formData.get("email");
-
     if (!email) {
       setError("Please enter your email.");
       return;
@@ -58,12 +61,11 @@ const LoginPage = () => {
     try {
       setLoading(true);
       const res = await axios.post(`${SERVER_URL}/users/check-email`, { email });
+      setEmail(email)
       if (res.data["exists"]) {
-        setEmail(email)
         setStep("step2-login");
 
       } else {
-        // Optionally, route to register if the email doesn't exist
         setStep("step1-register");
       }
     } catch (err) {
@@ -73,6 +75,114 @@ const LoginPage = () => {
       setLoading(false);
     }
   };
+
+  const handleStep1Register = (e) => {
+    e.preventDefault();
+    setError("")
+    const formData = new FormData(e.target);
+    const password = formData.get("password");
+    const confirmedPassword = formData.get("confirmedPassword")
+
+    if(password == "" || password == null) {
+      setError("Please enter your password.")
+      return  
+    }
+
+    if(confirmedPassword == "" || confirmedPassword == null) {
+      setError("Please confirm your password.")
+      return
+    }
+
+    if(password != confirmedPassword) {
+      setError("Passwords do not match.")
+      return
+    }
+    setPassword(password)
+    setStep("step2-register")
+  }
+
+  const handleStep2Register = async (e) => {
+    e.preventDefault()
+    setError("")
+    const formData = new FormData(e.target)
+    const phoneNumber = formData.get("phoneNumber")
+    const organization = formData.get("organization")
+
+    if(phoneNumber == "" || phoneNumber == null) {
+      setError("Please enter your phone number.")
+      return
+    }
+
+    if(organization == "" || organization == null) {
+      setError("Please enter your organization name.")
+      return
+    }
+
+    setPhoneNumber(phoneNumber)
+    setOrganization(organization)
+    try {
+      setLoading(true)
+      console.log({
+        email,
+        password,
+        phoneNumber,
+        organization
+      })
+      const res = await axios.post(`${SERVER_URL}/users/register`, {
+        email,
+        password,
+        phoneNumber,
+        organization
+      })
+      if(res.status !== 201) {
+        throw res.data["message"];
+      }
+
+      const data = res.data;
+      setStep("step3-register")
+
+    } catch(err) {
+      console.error(err)
+      setError("An error occurred. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleStep3Register = async (e) => {
+    e.preventDefault()
+    setError("")
+    const formData = new FormData(e.target)
+    const code = formData.get("code")
+
+    if(code == "" || code == null) {
+      setError("Please enter the code.")
+      return
+    }
+
+    try {
+      setLoading(true)
+      const res = await axios.post(`${SERVER_URL}/users/verify-email`, {email, code})
+      if(res.status !== 200) {
+        throw res.data["message"];
+      } else if(res.status === 200) {
+        
+        const res = await axios.post(`${SERVER_URL}/users/login`, {email, password})
+        if(res.status == 200) {
+          const data = res.data;
+          login(data["user"], data["token"])
+          navigate("/dashboard")
+        } else {
+          setError("Looks like we couldn't log you in. Try again later..")
+        }
+      }
+    } catch(err) {
+      console.error(err)
+      setError("An error occurred. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div
@@ -137,31 +247,82 @@ const LoginPage = () => {
         )}
 
         {step === "step1-register" && (
-          <form className="w-full">
-            {/* Placeholder for Step 1 Register Form */}
-            <p className="text-neutral-200 text-sm text-center">Step 1 Register Form</p>
+          <form onSubmit={handleStep1Register} className="w-full">
+            <p className="text-neutral-300 text-xl text-center mt-8">Looks like you are not registered yet...</p>
+             <label className="text-neutral-200 mt-8 mb-2 text-sm block">
+              Enter your password
+            </label>
+            <input
+              name="password"
+              type="password"
+              className="bg-neutral-700 w-full p-2 rounded text-white outline-none border border-stone-800"
+            />
+             <label className="text-neutral-200 mt-8 mb-2 text-sm block">
+              Confirm your password
+            </label>
+            <input
+              name="confirmedPassword"
+              type="password"
+              className="bg-neutral-700 w-full p-2 rounded text-white outline-none border border-stone-800"
+            />
+             <button
+              type="submit"
+              className="bg-neutral-900 text-neutral-200 w-full mt-8 p-2 rounded hover:bg-neutral-800 hover:cursor-pointer"
+              disabled={loading}
+            >
+              {loading ? "Loading..." : "Continue"}
+            </button>
           </form>
         )}
 
         {step === "step2-register" && (
-          <form className="w-full">
-            {/* Placeholder for Set Password Form */}
-            <p className="text-neutral-200 text-sm text-center">Set Password Form</p>
-          </form>
+          <form onSubmit={handleStep2Register} className="w-full">
+          <p className="text-neutral-300 text-xl text-center mt-8">Just one more last step...</p>
+           <label className="text-neutral-200 mt-8 mb-2 text-sm block">
+            Enter your phone number
+          </label>
+          <input
+            name="phoneNumber"
+            type="text"
+            className="bg-neutral-700 w-full p-2 rounded text-white outline-none border border-stone-800"
+          />
+           <label className="text-neutral-200 mt-8 mb-2 text-sm block">
+            Enter your organization name
+          </label>
+          <input
+            name="organization"
+            type="text"
+            className="bg-neutral-700 w-full p-2 rounded text-white outline-none border border-stone-800"
+          />
+           <button
+            type="submit"
+            className="bg-neutral-900 text-neutral-200 w-full mt-8 p-2 rounded hover:bg-neutral-800 hover:cursor-pointer"
+            disabled={loading}
+          >
+            {loading ? "Loading..." : "Continue"}
+          </button>
+        </form>
         )}
 
         {step === "step3-register" && (
-          <form className="w-full">
-            {/* Placeholder for Email Verification Form */}
-            <p className="text-neutral-200 text-sm text-center">Verify Email Form</p>
-          </form>
-        )}
-
-        {step === "step4-register" && (
-          <form className="w-full">
-            {/* Placeholder for Organization Registration Form */}
-            <p className="text-neutral-200 text-sm text-center">Organization Registration Form</p>
-          </form>
+           <form onSubmit={handleStep3Register} className="w-full">
+           <p className="text-neutral-300 text-xl text-center mt-8">Check your email. We sent a code to verify your account.</p>
+            <label className="text-neutral-200 mt-8 mb-2 text-sm block">
+             Enter the code
+           </label>
+           <input
+             name="code"
+             type="text"
+             className="bg-neutral-700 w-full p-2 rounded text-white outline-none border border-stone-800"
+           />
+            <button
+             type="submit"
+             className="bg-neutral-900 text-neutral-200 w-full mt-8 p-2 rounded hover:bg-neutral-800 hover:cursor-pointer"
+             disabled={loading}
+           >
+             {loading ? "Loading..." : "Continue"}
+           </button>
+         </form>
         )}
       </div>
 

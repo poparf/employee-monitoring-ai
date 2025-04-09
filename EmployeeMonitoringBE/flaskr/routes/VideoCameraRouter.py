@@ -194,6 +194,24 @@ def process_camera_frames(camera_name, rtsp_url,
     cap.release()
     print(f"Camera stream for {camera_name} has stopped")
 
+@bp.route("/", methods=["GET"])
+@permission_required("READ_VIDEO_CAMERA")
+def get_cameras_list(current_user):
+    db = get_tenant_db()
+    cameras = db.query(VideoCamera).all()
+    cameras_list = [{
+        "id": camera.id,
+        "ip": camera.ip,
+        "port": camera.port,
+        "username": camera.username,
+        "password": camera.password,
+        "name": camera.name,
+        "location": camera.location,
+        "status": camera.status.name
+    } for camera in cameras]
+    
+    return {"cameras": cameras_list}, 200
+
 @bp.route("/<string:camera_name>/stream", methods=["GET"])
 def get_camera(camera_name):
     res, code = validate_token(request.args.get("token"))

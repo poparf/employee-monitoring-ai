@@ -32,17 +32,17 @@ def validate_new_user_data(data):
         # Validate email
         email = data.get("email")    
         if re.match( r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email) == None:
-            return jsonify({"message": "Invalid email format"}), 400
-        # Validate password
-        password = data.get("password")
-        if len(password) < 8:
-            return jsonify({"message": "Password must be at least 8 characters long"}), 400
+            return jsonify({"message": "Invalid email format: " + email}), 400
+        # # Validate password
+        # password = data.get("password")
+        # if len(password) < 8:
+        #     return jsonify({"message": "Password must be at least 8 characters long"}), 400
 
-        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
-            return jsonify({"message": "Password must contain at least one special character"}), 400
+        # if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        #     return jsonify({"message": "Password must contain at least one special character"}), 400
 
-        if not re.search(r"\d", password):
-            return jsonify({"message": "Password must contain at least one number"}), 400
+        # if not re.search(r"\d", password):
+        #     return jsonify({"message": "Password must contain at least one number"}), 400
 
         # Validate phone number
         phoneNumber = data.get("phoneNumber")
