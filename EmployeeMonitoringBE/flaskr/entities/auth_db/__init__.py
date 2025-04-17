@@ -5,3 +5,4 @@ from flaskr.entities.auth_db.RolePermission import RolePermission
 from flaskr.entities.auth_db.RoleUser import RoleUser
 from flaskr.entities.auth_db.EmailCodes import EmailCodes
 from flaskr.entities.auth_db.Tenant import Tenant
+from flaskr.entities.auth_db.InvitationCodes import InvitationCodes

@@ -16,7 +16,7 @@ def init_auth_db(app):
     db.add(super_admin_role)
     admin_role = Role(name="ADMIN")
     db.add(admin_role)
-    security_guard_role = Role(name="SECURITYGUARD")
+    security_guard_role = Role(name="SECURITY")
     db.add(security_guard_role)
 
     get_alerts_permission = Permission(name="GET_ALERTS")

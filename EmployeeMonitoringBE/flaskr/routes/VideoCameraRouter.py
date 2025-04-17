@@ -212,6 +212,26 @@ def get_cameras_list(current_user):
     
     return {"cameras": cameras_list}, 200
 
+@bp.route("/<int:camera_id>", methods=["GET"])
+@permission_required("READ_VIDEO_CAMERA")
+def get_camera_by_id(current_user, camera_id):
+    db = get_tenant_db()
+    camera = db.query(VideoCamera).filter_by(id=camera_id).first()
+    if not camera:
+        return {"message": "Camera not found"}, 404
+
+    camera_info = {
+        "id": camera.id,
+        "ip": camera.ip,
+        "port": camera.port,
+        "username": camera.username,
+        "password": camera.password,
+        "name": camera.name,
+        "location": camera.location,
+        "status": camera.status.name
+    }
+    return {"camera": camera_info}, 200
+
 @bp.route("/<string:camera_name>/stream", methods=["GET"])
 def get_camera(camera_name):
     res, code = validate_token(request.args.get("token"))
@@ -298,7 +318,7 @@ def get_camera(camera_name):
     })
 
 
-@bp.route('/video-cameras/<camera_name>/stream', methods=['OPTIONS'])
+@bp.route('/<camera_name>/stream', methods=['OPTIONS'])
 @permission_required("READ_VIDEO_STREAM")
 def handle_options(current_user, camera_name):
     response = app.make_default_options_response()

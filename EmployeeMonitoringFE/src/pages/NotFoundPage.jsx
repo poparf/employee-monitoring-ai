@@ -7,7 +7,7 @@ const NotFoundPage = ({isAuthenticated}) => {
             if(isAuthenticated) {
                 window.location.href = "/login"
             } else {
-                window.location.href = "/home"
+                window.location.href = "/dashboard"
             }
         }, 5000)
     }, [])

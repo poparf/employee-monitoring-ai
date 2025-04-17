@@ -6,7 +6,18 @@ import os
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
     
-    cors = CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+    # Update CORS configuration to properly handle preflight requests
+    # Specify the frontend origin explicitly and allow credentials
+    cors = CORS(
+        app, 
+        resources={r"/*": {
+            "origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
+            "supports_credentials": True,
+            "allow_headers": ["Content-Type", "Authorization"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+        }},
+        expose_headers=["Content-Type", "Authorization"]
+    )
     
     load_dotenv()
     app.config.from_mapping(
@@ -31,6 +42,12 @@ def create_app(test_config=None):
         
     #     init_auth_db(app)
 
+    # Add a before_request function to handle OPTIONS requests
+    @app.before_request
+    def handle_preflight():
+        from flask import request
+        if request.method == "OPTIONS":
+            return "", 200
 
     return app
 

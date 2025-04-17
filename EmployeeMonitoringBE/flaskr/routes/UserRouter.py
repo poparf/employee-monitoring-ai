@@ -3,6 +3,9 @@ from flaskr.entities.auth_db.User import User
 from flaskr.db import get_users_db
 from flaskr.entities.auth_db.EmailCodes import EmailCodes
 from flaskr.entities.auth_db.Role import Role
+from flaskr.entities.auth_db.RoleUser import RoleUser
+from flaskr.entities.auth_db.InvitationCodes import InvitationCodes
+from flaskr.entities.auth_db.Tenant import Tenant
 from flaskr.services.AuthService import check_password, hash_password
 import re
 from flaskr.services.EmailService import get_email_service
@@ -51,11 +54,94 @@ def validate_new_user_data(data):
 
         return None, 200
 
-@bp.route("/register-security-guard", methods=["POST"])
+def delete_expired_invitation_code(db, code):
+    try:
+        inv_code = db.query(InvitationCodes).filter_by(code=code).first()
+        if inv_code is not None:
+            db.delete(inv_code)
+            db.commit()
+    except Exception as e:
+        app.logger.error(e)
+
+@bp.route("/security/invitation", methods=["POST"])
 @role_required("ADMIN")
+def post_invitation(current_user):
+    try:
+        code = request.get_json().get("code")
+        if code == None:
+            return jsonify({"message": "No code provided"}), 400
+        
+        db = get_users_db()
+        invitation_code = db.query(InvitationCodes).filter_by(code=code).first()
+        if invitation_code == None:
+            InvitationCodes(code=code, user_id=current_user.id).save()
+            db.commit()
+            Timer(86400, delete_expired_invitation_code, [db, code]).start()
+            return jsonify({"message": "Invitation code created"}), 201
+        
+    except Exception as e:
+        app.logger.error(e)
+        return jsonify({"message": "Something went wrong"}), 500
+
+@bp.route("/security", methods=["GET"])
+@role_required("ADMIN")
+def get_all_security_guards(current_user):
+    try:
+        db = get_users_db()
+        security_guards = db.query(User).join(RoleUser).join(Role).filter(Role.name == "SECURITY").filter(User.tenant_id == g.tenant_id).all()
+        if security_guards == None:
+            return jsonify({"message": "No security guards found"}), 404
+        return jsonify([{
+            "id": guard.id,
+            "email": guard.email,
+            "phoneNumber": guard.phoneNumber
+        } for guard in security_guards]), 200
+    except Exception as e:
+        app.logger.error(e)
+        return jsonify({"message": "Something went wrong"}), 500
+
+@bp.route("/security/<int:user_id>", methods=["GET"])
+@role_required("ADMIN")
+def get_security_guard(current_user, user_id):
+    try:
+        db = get_users_db()
+        user = db.query(User).filter_by(id=user_id).first()
+        if user == None:
+            return jsonify({"message": "User not found"}), 404
+        return jsonify({
+            "id": user.id,
+            "email": user.email,
+            "phoneNumber": user.phoneNumber
+        }), 200
+    except Exception as e:
+        app.logger.error(e)
+        return jsonify({"message": "Something went wrong"}), 500
+
+@bp.route("/security/<int:user_id>", methods=["DELETE"])
+@role_required("ADMIN")
+def delete_security_guard(current_user, user_id):
+    try:
+        db = get_users_db()
+        user = db.query(User).filter_by(id=user_id).first()
+        if user == None:
+            return jsonify({"message": "User not found"}), 404
+        db.delete(user)
+        db.commit()
+        return jsonify({"message": "User deleted"}), 200
+    except Exception as e:
+        app.logger.error(e)
+        return jsonify({"message": "Something went wrong"}), 500
+
+
+
+@bp.route("/security/register", methods=["POST"])
 def register_security_guard(current_user):
     try:
         data = request.get_json()
+        code = request.args.get("code")
+        if code == None:
+            return jsonify({"message": "No code provided"}), 400
+
         message, code = validate_new_user_data(data)
         if code == 400:
             return message, code
@@ -64,6 +150,10 @@ def register_security_guard(current_user):
         phoneNumber = data["phoneNumber"]
 
         db = get_users_db()
+        invitation_code = db.query(InvitationCodes).filter_by(code=code).first()
+        if invitation_code == None:
+            return jsonify({"message": "Invalid code or expired code."}), 400
+
         user = db.query(User).filter_by(email=email).first()
         if user != None:
             return jsonify({"message": "Email already in use"}), 400
@@ -72,6 +162,7 @@ def register_security_guard(current_user):
         user = User(email=email, password=hashedPassword, phoneNumber=phoneNumber, tenant_id=g.tenant_id)
         user.roles.append(db.query(Role).filter_by(name="SECURITY").first())
         db.add(user)
+        db.delete(invitation_code)
         db.flush()
         db.commit()
         return {"message": "User created successfully", "user": {
@@ -94,14 +185,23 @@ def register():
     email = data["email"]
     password = data["password"]
     phoneNumber = data["phoneNumber"]
+    organization = data["organization"]
     
     db = get_users_db()
     user = db.query(User).filter_by(email=email).first()
     if user != None:
         return jsonify({"message": "Email already in use"}), 400
     
+    org = db.query(Tenant).filter_by(name=organization).first()
+    if org != None:
+        return jsonify({"message": "Organization already exists"}), 400
+    
+    tenant = Tenant(name=organization)
+    db.add(tenant)
+    db.flush()  # Ensure the tenant ID is generated
+
     hashedPassword = hash_password(password)
-    user = User(email=email, password=hashedPassword, phoneNumber=phoneNumber)
+    user = User(email=email, password=hashedPassword, phoneNumber=phoneNumber, tenant_id=tenant.id)
     user.roles.append(db.query(Role).filter_by(name="ADMIN").first())
     db.add(user)
     db.flush()  # Ensure the user ID is generated
@@ -116,12 +216,18 @@ def register():
 
 
 def delete_expired_timer_email_verification(db, user, emailVerification):
-    emailVerification = db.query(EmailCodes).filter_by(id=emailVerification.id).first()
-    if emailVerification is not None:
-        if user.is_verified == False:
-            db.delete(user)
-        db.delete(emailVerification)
-        db.commit()
+    try:
+        emailVerification = db.query(EmailCodes).filter_by(id=emailVerification.id).first()
+        if emailVerification is not None:
+            if user.is_verified == False:
+                tenant = db.query(Tenant).filter_by(id=user.tenant_id).first()
+                if tenant is not None:
+                    db.delete(tenant)
+                db.delete(user)
+            db.delete(emailVerification)
+            db.commit()
+    except Exception as e:
+        app.logger.error(e)
 
 @bp.route("/verify-email", methods=["POST"])
 def verify_email():

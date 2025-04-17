@@ -122,25 +122,22 @@ const LoginPage = () => {
     setOrganization(organization)
     try {
       setLoading(true)
-      console.log({
-        email,
-        password,
-        phoneNumber,
-        organization
-      })
       const res = await axios.post(`${SERVER_URL}/users/register`, {
         email,
         password,
         phoneNumber,
         organization
       })
-      if(res.status !== 201) {
-        throw res.data["message"];
+      console.log("Here")
+      if(res.status === 201) {
+        const data = res.data;
+        setStep("step3-register")
+      } else if(res.status === 400) {
+       setError(res.data["message"])
+       return; 
+      } else {
+      throw res.data["message"];
       }
-
-      const data = res.data;
-      setStep("step3-register")
-
     } catch(err) {
       console.error(err)
       setError("An error occurred. Please try again.")
@@ -175,7 +172,7 @@ const LoginPage = () => {
         } else {
           setError("Looks like we couldn't log you in. Try again later..")
         }
-      }
+      } 
     } catch(err) {
       console.error(err)
       setError("An error occurred. Please try again.")
