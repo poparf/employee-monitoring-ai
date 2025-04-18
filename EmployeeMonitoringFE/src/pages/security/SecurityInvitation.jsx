@@ -22,7 +22,7 @@ const SecurityInvitation = () => {
         setCopied(false);
         setError("");
         const res = await postSecurityInvitation(newUuid);
-        if(res.status === 200) {
+        if(res.status === 201) {
             console.log("Invitation code generated successfully:", res.data);
         }
         else {
