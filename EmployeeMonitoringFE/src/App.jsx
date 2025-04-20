@@ -6,6 +6,7 @@ import AboutPage from "./pages/AboutPage.jsx";
 import "./style/main.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router";
 import { LoginRequiredComponent } from "./components/protected/LoginRequired.jsx";
+import { AdminRoleRequired } from "./components/protected/AdminRoleRequired.jsx";
 import { useUser } from "./context/UserContext.jsx";
 import { LoadingComponent } from "./components/LoadingComponent.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
@@ -28,7 +29,7 @@ import SecurityInvitation from "./pages/security/SecurityInvitation.jsx";
 import SecurityEdit from "./pages/security/SecurityEdit.jsx";
 
 export const App = () => {
-  const { isAuthenticated, loading } = useUser();
+  const { isAuthenticated, loading, isAdmin } = useUser();
 
   if (loading) {
     return <div
@@ -59,15 +60,17 @@ export const App = () => {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<HomePage />} />
           
-          <Route path="/employees/register" element={<EmployeeRegistration/>} />
-          <Route path="/employees/:employeeId/edit" element={<EmployeeEdit />} />
-          <Route path="/employees" element={<EmployeesList/>} />
+          <Route element={<AdminRoleRequired isAdmin={isAdmin()}/>}>
+            <Route path="/employees/register" element={<EmployeeRegistration/>} />
+            <Route path="/employees/:employeeId/edit" element={<EmployeeEdit />} />
+            <Route path="/employees" element={<EmployeesList/>} />
 
-          <Route path="/security/register" element={<SecurityRegistration />} />
-          <Route path="/security" element={<SecurityList />} />
-          <Route path="/security/invitation" element={<SecurityInvitation />} />
-          <Route path="/security/:securityId/edit" element={<SecurityEdit />} />
-
+            <Route path="/security/register" element={<SecurityRegistration />} />
+            <Route path="/security" element={<SecurityList />} />
+            <Route path="/security/invitation" element={<SecurityInvitation />} />
+            <Route path="/security/:securityId/edit" element={<SecurityEdit />} />
+          </Route>
+       
           <Route path="/alerts" element={<AlertsPage/>}/>
           
           <Route path="/video-cameras" element={<VideoCamerasPage/>}/>

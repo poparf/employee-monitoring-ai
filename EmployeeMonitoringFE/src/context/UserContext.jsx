@@ -27,6 +27,28 @@ export const UserProvider = ({ children }) => {
     localStorage.setItem("token", token);
   };
 
+  const isSecurity = () => {
+    if (user && user.roles) {
+      return user.roles.some(role => role === "SECURITY");
+    }
+    return false
+  }
+  
+  const isAdmin = () => {
+    if (user && user.roles) {
+      return user.roles.some(role => role === "ADMIN");
+    }
+    return false
+  }
+
+  const getRoles = () => {
+    if (user && user.roles) {
+      return user.roles;
+    } else {
+      return null;
+    }
+  }
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -37,7 +59,7 @@ export const UserProvider = ({ children }) => {
   const isAuthenticated = () => user !== null;
 
   return (
-    <UserContext.Provider value={{ token, user, login, logout, isAuthenticated, loading }}>
+    <UserContext.Provider value={{ token, user, login, logout, isAuthenticated, loading, isAdmin, isSecurity, getRoles }}>
       {children}
     </UserContext.Provider>
   );

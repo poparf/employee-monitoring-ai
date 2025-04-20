@@ -16,7 +16,7 @@ import dlib
 
 bp = Blueprint("video-cameras", __name__, url_prefix="/video-cameras")
 
-active_cameras = {}  # camera_name: {"frame": bytes, "clients": count, "running": bool}
+active_cameras = {}  # camera_name: {"frame": bytes, "clients": count, "running": bool, "filters": [], thread: Thread}
 camera_locks = {}    # camera_name: Lock
 
 
@@ -110,13 +110,15 @@ def process_camera_frames(camera_name, rtsp_url,
                             ppe_recognition_filter=False,
                             known_face_encodings=[],
                             known_face_names=[]):
-
+    print(f"Starting stream processing for {camera_name}")
     cuda_available = dlib.DLIB_USE_CUDA
     print(f"CUDA available: {cuda_available}")
 
     cap = cv.VideoCapture(rtsp_url)
+    #cap = cv.VideoCapture(0)
     # Reduced buffer size: solution 1
     cap.set(cv.CAP_PROP_BUFFERSIZE, 2)
+    active_cameras[camera_name]["cap"] = cap
     if not cap.isOpened():
         print(f"Could not open stream for camera: {camera_name}")
         with camera_locks[camera_name]:
@@ -125,7 +127,8 @@ def process_camera_frames(camera_name, rtsp_url,
     
     process_this_frame = True
 
-    while True:
+
+    while active_cameras[camera_name]["running"]:
         with camera_locks[camera_name]:
             if active_cameras[camera_name]["clients"] <= 0:
                 active_cameras[camera_name]["running"] = False
@@ -134,12 +137,12 @@ def process_camera_frames(camera_name, rtsp_url,
         
         success, frame = cap.read()
         if not success:
-            print(f"Failed to read frame for camera {camera_name}")
-            continue
-        
+            break
+
         if process_this_frame:
             try:
                 if face_recognition_filter and known_face_encodings:
+                    print("detecting faces")
                     small_frame = cv.resize(frame, (0, 0), fx=0.25, fy=0.25)
                     rgb_small_frame = np.ascontiguousarray(small_frame[:, :, ::-1])
                     face_locations = face_recognition.face_locations(rgb_small_frame, model="cnn")
@@ -156,6 +159,7 @@ def process_camera_frames(camera_name, rtsp_url,
                             if matches[best_match_index]:
                                 name = known_face_names[best_match_index]
                         face_names.append(name)
+                        print("Face names: ", face_names)
                     
                     for (top, right, bottom, left), name in zip(face_locations, face_names):
                         top *= 4
@@ -193,23 +197,32 @@ def process_camera_frames(camera_name, rtsp_url,
         
     cap.release()
     print(f"Camera stream for {camera_name} has stopped")
+    
 
 @bp.route("/", methods=["GET"])
 @permission_required("READ_VIDEO_CAMERA")
 def get_cameras_list(current_user):
     db = get_tenant_db()
     cameras = db.query(VideoCamera).all()
-    cameras_list = [{
-        "id": camera.id,
-        "ip": camera.ip,
-        "port": camera.port,
-        "username": camera.username,
-        "password": camera.password,
-        "name": camera.name,
-        "location": camera.location,
-        "status": camera.status.name
-    } for camera in cameras]
-    
+    cameras_list = []
+    for camera in cameras:
+        if camera.name not in active_cameras:
+            status = "inactive"
+        else:
+            status = "active" if active_cameras[camera.name]["running"] else "inactive"
+
+        camera_info = {
+            "id": camera.id,
+            "ip": camera.ip,
+            "port": camera.port,
+            "username": camera.username,
+            "password": camera.password,
+            "name": camera.name,
+            "location": camera.location,
+            "status": status
+        }
+        cameras_list.append(camera_info)
+
     return {"cameras": cameras_list}, 200
 
 @bp.route("/<int:camera_id>", methods=["GET"])
@@ -220,6 +233,11 @@ def get_camera_by_id(current_user, camera_id):
     if not camera:
         return {"message": "Camera not found"}, 404
 
+    if camera.name not in active_cameras:
+        status = "inactive"
+    else:
+        status = "active" if active_cameras[camera.name]["running"] else "inactive"
+
     camera_info = {
         "id": camera.id,
         "ip": camera.ip,
@@ -228,7 +246,12 @@ def get_camera_by_id(current_user, camera_id):
         "password": camera.password,
         "name": camera.name,
         "location": camera.location,
-        "status": camera.status.name
+        "status": status,
+        "filters": active_cameras[camera.name]["filters"] if camera.name in active_cameras else {
+            "face_recognition": False,
+            "person_detection": False,
+            "ppe_recognition": False
+        }
     }
     return {"camera": camera_info}, 200
 
@@ -238,9 +261,9 @@ def get_camera(camera_name):
     if code != 200:
         return res, code
     current_user = res
-    face_recognition_filter = request.args.get("face_recognition", False)
-    person_detection_filter = request.args.get("person_detection", False)
-    ppe_recognition_filter = request.args.get("ppe_recognition", False)
+    face_recognition_filter = request.args.get("face_recognition", "false").lower() == "true"
+    person_detection_filter = request.args.get("person_detection", "false").lower() == "true"
+    ppe_recognition_filter = request.args.get("ppe_recognition", "false").lower() == "true"
 
     db = get_tenant_db()
     camera = db.query(VideoCamera).filter_by(name=camera_name).first()
@@ -261,29 +284,62 @@ def get_camera(camera_name):
 
 
     # Here the RTSP stream should be read and returned
-    rtsp_url = f"rtsp://{camera.username}:{camera.password}@{camera.ip}:{camera.port}/stream2"
-    #rtsp_url = 0
+    #rtsp_url = f"rtsp://{camera.username}:{camera.password}@{camera.ip}:{camera.port}/stream2"
+    rtsp_url = 0
     if camera_name not in active_cameras:
         active_cameras[camera_name] = {
             "frame": None,
             "clients": 0,
-            "running": False
+            "running": False,
+            "filters": {
+                "face_recognition": face_recognition_filter,
+                "person_detection": person_detection_filter,
+                "ppe_recognition": ppe_recognition_filter
+            },
+            "thread": None,
+            "cap": None
         }
         camera_locks[camera_name] = Lock()
 
     with camera_locks[camera_name]:
         active_cameras[camera_name]["clients"] += 1
         clients = active_cameras[camera_name]["clients"]
-        running = active_cameras[camera_name]["running"]
-
         print(f"New client connected to camera {camera_name}. Total clients: {clients}")
+    
+        # Check if the camera is already running and if it has any filters activated
+        # if the camera is running and filters have changed
+        if active_cameras[camera_name]["running"] and (
+            active_cameras[camera_name]["filters"]["face_recognition"] != face_recognition_filter or
+            active_cameras[camera_name]["filters"]["person_detection"] != person_detection_filter or
+            active_cameras[camera_name]["filters"]["ppe_recognition"] != ppe_recognition_filter
+        ):
+            print(f"Restarting camera stream for {camera_name} due to filter change")
+            
+            if active_cameras[camera_name]["cap"]:
+                active_cameras[camera_name]["cap"].release()
+            active_cameras[camera_name]["running"] = False
+            active_cameras[camera_name]["frame"] = None
 
-        if not running:
+            print("Am ajuns aici")
+            old_thread = active_cameras[camera_name]["thread"]
+            if old_thread is not None and old_thread.is_alive():
+                print(f"Waiting for old stream thread for {camera_name} to finish...")
+                old_thread.join(timeout=1)
+                print("Old stream thread finished")
+
+        active_cameras[camera_name]["filters"] = {
+            "face_recognition": face_recognition_filter,
+            "person_detection": person_detection_filter,
+            "ppe_recognition": ppe_recognition_filter
+        }
+        
+        if not active_cameras[camera_name]["running"]:
             active_cameras[camera_name]["running"] = True
             process_thread = Thread(target=process_camera_frames,
                                     args=(camera_name, rtsp_url, face_recognition_filter, person_detection_filter, ppe_recognition_filter,
                                           known_face_encodings, known_face_names))
             process_thread.daemon = True
+            active_cameras[camera_name]["thread"] = process_thread
             process_thread.start()
     
     def generate_frames_for_client():

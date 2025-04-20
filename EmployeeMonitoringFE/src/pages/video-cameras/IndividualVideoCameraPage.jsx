@@ -35,97 +35,94 @@ const IndividualVideoCameraPage = () => {
     const [currentZone, setCurrentZone] = useState(null);
     const [editMode, setEditMode] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
-    const [streamKey, setStreamKey] = useState(Date.now());
     const [streamUrl, setStreamUrl] = useState('');
+    const [isStreamActive, setIsStreamActive] = useState(false);
+    const [isFaceRecognitionEnabled, setIsFaceRecognitionEnabled] = useState(false);
     const { token } = useUser();
     
+    const faceRecognitionSliderRef = useRef(null);
     const videoContainerRef = useRef(null);
     const streamRef = useRef(null);
     const refreshTimerRef = useRef(null);
 
+    const buildStreamUrl = (cameraObj, tokenVal, faceRecEnabled) => {
+        if (!cameraObj?.name || !tokenVal) return '';
+        let url = `${SERVER_URL}/video-cameras/${cameraObj.name}/stream?token=${tokenVal}`;
+        if (faceRecEnabled) url += '&face_recognition=true';
+        return url;
+    };
+
     const fetchCameraData = async () => {
         setRefreshing(true);
+        setIsStreamActive(false);
+        setError(null);
         try {
-            // Get camera details
             const response = await getCamera(cameraId);
-            setCamera(response.data);
-            
-            // Update stream URL with the new camera data
-            if (response.data && response.data.name) {
-                updateStreamUrl(response.data.id, response.data.name);
-            }
+            const cam = response.data.camera;
+            setCamera(cam);
+            console.log(cam)
+            const faceRec = cam?.filters?.face_recognition;
+            setIsFaceRecognitionEnabled(faceRec);
+
+            setStreamUrl(buildStreamUrl(cam, token, faceRec));
         } catch (err) {
             console.error("Failed to fetch camera details:", err);
             setError("Failed to load camera details. Please try again later.");
+            setStreamUrl('');
         } finally {
             setRefreshing(false);
             setLoading(false);
         }
     };
 
-    // Function to generate and update stream URL
-    const updateStreamUrl = (id, name, forceRefresh = false) => {
-        if (!token || !name) return;
-        
-        // Create a fresh URL with timestamp to prevent caching
-        const url = `${SERVER_URL}/video-cameras/${name}/stream?token=${token}&t=${forceRefresh ? Date.now() : streamKey}`;
-        setStreamUrl(url);
-        return url;
-    };
-    
-    // Function to refresh stream URL
-    const refreshStream = () => {
-        if (camera && camera.name) {
-            setStreamKey(Date.now());
-            return updateStreamUrl(camera.id, camera.name, true);
-        }
-        return '';
-    };
-
     useEffect(() => {
         if (cameraId && token) {
-            // Initial data fetch
             fetchCameraData();
             
-            // Set up stream refresh interval (every 2 minutes)
             refreshTimerRef.current = setInterval(() => {
-                setStreamKey(Date.now()); // Force stream to reload
                 if (camera && camera.name) {
-                    updateStreamUrl(camera.id, camera.name, true);
+                    setIsStreamActive(false);
+                    setError(null);
                 }
             }, 120000);
             
-            // Clean up intervals on component unmount
             return () => {
                 if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
             };
         } else {
             setError("Missing camera ID or authentication.");
             setLoading(false);
+            setIsStreamActive(false);
+            setStreamUrl('');
         }
     }, [cameraId, token]);
 
-    // Update stream URL when streamKey changes
     useEffect(() => {
-        if (camera && camera.name) {
-            updateStreamUrl(camera.id, camera.name);
+        if (camera && token) {
+            setStreamUrl(buildStreamUrl(camera, token, isFaceRecognitionEnabled));
+            setIsStreamActive(false);
+            setError(null);
         }
-    }, [streamKey, camera]);
+    }, [camera, token, isFaceRecognitionEnabled]);
 
     const handleManualRefresh = () => {
-        // Refresh both data and stream
+        setLoading(true);
+        setIsStreamActive(false);
+        setError(null);
         fetchCameraData();
-        refreshStream();
     };
 
     const handleStreamLoad = () => {
         if (streamRef.current) {
             streamRef.current.style.display = 'block';
         }
+        setIsStreamActive(true);
+        setError(null);
     };
     
     const handleStreamError = () => {
-        setError("Stream unavailable. Please check camera status.");
+        setError("Stream unavailable or failed to load. Please check camera status or refresh.");
+        setIsStreamActive(false);
         if (streamRef.current) {
             streamRef.current.style.display = 'none';
         }
@@ -220,6 +217,11 @@ const IndividualVideoCameraPage = () => {
         return points.map(point => `${point.x},${point.y}`).join(' ');
     };
 
+    const handleToggleFaceRecognition = (event) => {
+        const newFaceRecognitionState = event.target.checked;
+        setIsFaceRecognitionEnabled(newFaceRecognitionState);
+    };    
+
     return (
         <div className="flex h-screen bg-neutral-900 text-white">
             <Sidebar />
@@ -278,14 +280,18 @@ const IndividualVideoCameraPage = () => {
                     )}
                 </div>
 
-                {loading ? (
+                {loading && !camera ? (
                     <div className="flex justify-center items-center h-64">
                         <div className="text-xl text-neutral-400">Loading camera data...</div>
                     </div>
-                ) : error ? (
+                ) : error && !isStreamActive ? (
                     <div className="bg-red-800 border border-red-600 text-red-100 px-4 py-3 rounded relative mb-6" role="alert">
                         <strong className="font-bold">Error:</strong>
                         <span className="block sm:inline"> {error}</span>
+                    </div>
+                ) : !camera ? (
+                    <div className="flex justify-center items-center h-64">
+                        <div className="text-xl text-neutral-400">Could not load camera data.</div>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -294,26 +300,35 @@ const IndividualVideoCameraPage = () => {
                                 <h2 className="text-xl font-semibold">Live Feed with Zones</h2>
                                 <div className={`
                                     px-3 py-1 rounded-full text-sm font-medium flex items-center
-                                    ${camera?.status?.toLowerCase() === 'active' ? 'bg-green-500 text-green-900' : 'bg-red-500 text-red-900'}
+                                    ${isStreamActive && !error ? 'bg-green-500 text-green-900' : 'bg-red-500 text-red-900'}
                                 `}>
-                                    <span className={`mr-1 w-2 h-2 rounded-full ${camera?.status?.toLowerCase() === 'active' ? 'bg-green-900 animate-pulse' : 'bg-red-900'}`}></span>
-                                    {camera?.status?.toLowerCase() === 'active' ? 'LIVE' : 'OFFLINE'}
+                                    <span className={`mr-1 w-2 h-2 rounded-full ${isStreamActive && !error ? 'bg-green-900 animate-pulse' : 'bg-red-900'}`}></span>
+                                    {isStreamActive && !error ? 'LIVE' : 'OFFLINE'}
                                 </div>
                             </div>
                             
                             <div className="relative aspect-video bg-black" ref={videoContainerRef} onClick={handleCanvasClick}>
-                                {camera && camera.name && !loading ? (
-                                    <img
-                                        ref={streamRef}
-                                        src={streamUrl}
-                                        alt={`Stream from ${camera.name}`}
-                                        className="w-full h-full object-cover"
-                                        onLoad={handleStreamLoad}
-                                        onError={handleStreamError}
-                                    />
+                                {streamUrl && camera?.name ? (
+                                    <>
+                                        <img
+                                            ref={streamRef}
+                                            key={`stream-${isFaceRecognitionEnabled}-${streamUrl}`}
+                                            src={streamUrl}
+                                            alt={`Stream from ${camera.name}`}
+                                            className="w-full h-full object-cover"
+                                            style={{ display: isStreamActive ? 'block' : 'none' }} 
+                                            onLoad={handleStreamLoad}
+                                            onError={handleStreamError}
+                                        />
+                                        {!isStreamActive && (
+                                            <div className="absolute inset-0 flex items-center justify-center text-neutral-500 bg-black">
+                                                {refreshing || (loading && !isStreamActive) ? "Connecting to stream..." : error ? "Stream unavailable" : "Initializing stream..."}
+                                            </div>
+                                        )}
+                                    </>
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-neutral-500">
-                                        {loading ? "Loading camera data..." : camera ? "Camera ready, starting stream..." : "No camera data available"}
+                                        {loading ? "Loading camera data..." : !camera?.name ? "Camera name missing." : "Stream URL not available."}
                                     </div>
                                 )}
                                 
@@ -333,14 +348,26 @@ const IndividualVideoCameraPage = () => {
                                         />
                                     )}
                                 </svg>
-                                
-                                {editMode && (
+                            </div>
+                            {editMode && (
                                     <div className="absolute inset-x-0 bottom-4 flex justify-center">
                                         <div className="bg-black bg-opacity-70 text-white px-4 py-2 rounded">
                                             Click to add points. Minimum 3 points needed.
                                         </div>
                                     </div>
                                 )}
+                            <div className="mt-4">
+                                <label className="inline-flex items-center cursor-pointer">
+                                    <input 
+                                        type="checkbox" 
+                                        className="sr-only peer" 
+                                        checked={isFaceRecognitionEnabled}
+                                        ref={faceRecognitionSliderRef}
+                                        onChange={handleToggleFaceRecognition}
+                                    />
+                                    <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:peer-focus:ring-cyan-800 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-cyan-600"></div>
+                                    <span className="ms-3 text-sm font-medium text-neutral-300">Face Recognition</span>
+                                </label>
                             </div>
                         </div>
                         
@@ -373,12 +400,12 @@ const IndividualVideoCameraPage = () => {
                                 </p>
                                 <p className="flex justify-between py-2 border-b border-neutral-700">
                                     <span className="text-neutral-400 flex items-center"><FiLock className="mr-2" />Password:</span>
-                                    <span className="font-mono">••••••••</span>
+                                    <span className="font-mono">{camera?.password}</span>
                                 </p>
                                 <p className="flex justify-between py-2 border-b border-neutral-700">
                                     <span className="text-neutral-400 flex items-center"><FiAlertCircle className="mr-2" />Status:</span>
-                                    <span className={camera?.status?.toLowerCase() === 'active' ? 'text-green-400' : 'text-red-400'}>
-                                        {camera?.status?.toLowerCase() || 'unknown'}
+                                    <span className={isStreamActive && !error ? 'text-green-400' : 'text-red-400'}>
+                                        {isStreamActive && !error ? 'Active' : error ? 'Error' : 'Inactive'}
                                     </span>
                                 </p>
                                 <p className="flex justify-between py-2 border-b border-neutral-700">

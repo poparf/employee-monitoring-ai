@@ -63,18 +63,53 @@ def delete_expired_invitation_code(db, code):
     except Exception as e:
         app.logger.error(e)
 
+@bp.route("/whoinvitedme", methods=["GET"])
+def who_invited_me():
+    try:
+        code = request.args.get("code")
+        db = get_users_db()
+        if code == None:
+            return jsonify({"message": "No code provided"}), 400
+        
+        invitation_code = db.query(InvitationCodes).filter_by(code=code).first()
+        if invitation_code == None:
+            return jsonify({"message": "Invalid code"}), 400
+        
+        user = db.query(User).filter_by(id=invitation_code.user_id).first()
+        tenant = db.query(Tenant).filter_by(id=user.tenant_id).first()
+
+        if tenant == None:
+            return jsonify({"message": "Tenant not found"}), 404
+        
+        if user == None:
+            return jsonify({"message": "User not found"}), 404
+        return jsonify({
+            "user": {
+                "email": user.email
+            },
+            "organization": {
+                "name": tenant.name
+            }
+        }), 200
+        
+
+    except Exception as e:
+        app.logger.error(e)
+        return jsonify({"message": "Something went wrong"}), 500
+
 @bp.route("/security/invitation", methods=["POST"])
 @role_required("ADMIN")
 def post_invitation(current_user):
     try:
-        code = request.get_json().get("code")
+        code = request.get_json()
         if code == None:
             return jsonify({"message": "No code provided"}), 400
         
         db = get_users_db()
         invitation_code = db.query(InvitationCodes).filter_by(code=code).first()
         if invitation_code == None:
-            InvitationCodes(code=code, user_id=current_user.id).save()
+            inv_code = InvitationCodes(code=code, user_id=current_user.id)
+            db.add(inv_code)
             db.commit()
             Timer(86400, delete_expired_invitation_code, [db, code]).start()
             return jsonify({"message": "Invitation code created"}), 201
@@ -135,19 +170,18 @@ def delete_security_guard(current_user, user_id):
 
 
 @bp.route("/security/register", methods=["POST"])
-def register_security_guard(current_user):
+def register_security_guard():
     try:
         data = request.get_json()
-        code = request.args.get("code")
-        if code == None:
-            return jsonify({"message": "No code provided"}), 400
 
         message, code = validate_new_user_data(data)
         if code == 400:
             return message, code
+
         email = data["email"]
         password = data["password"]
         phoneNumber = data["phoneNumber"]
+        code = data["invitationCode"]
 
         db = get_users_db()
         invitation_code = db.query(InvitationCodes).filter_by(code=code).first()
@@ -159,7 +193,12 @@ def register_security_guard(current_user):
             return jsonify({"message": "Email already in use"}), 400
         
         hashedPassword = hash_password(password)
-        user = User(email=email, password=hashedPassword, phoneNumber=phoneNumber, tenant_id=g.tenant_id)
+
+        # Get the user who invited the security, join with tenant to get the tenant id
+        invited_by_user = db.query(User).join(Tenant).filter(User.id == invitation_code.user_id, Tenant.id == User.tenant_id).first()
+
+        user = User(email=email, password=hashedPassword, phoneNumber=phoneNumber, tenant_id=invited_by_user.tenant_id)
+        user.is_verified = True  # Set the user as verified
         user.roles.append(db.query(Role).filter_by(name="SECURITY").first())
         db.add(user)
         db.delete(invitation_code)
@@ -315,6 +354,7 @@ def login():
                 "id": user.id,
                 "email": user.email,
                 "phoneNumber": user.phoneNumber,
+                "roles": [role.name for role in user.roles],
                 "tenant_id": user.tenant_id,
             }}), 200
         except Exception as e:

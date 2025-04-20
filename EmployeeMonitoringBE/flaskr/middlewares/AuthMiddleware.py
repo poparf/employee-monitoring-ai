@@ -23,9 +23,11 @@ def auth_required(f):
                 return {
                     "message": "Invalid token",
                 }, 401
+            
         except Exception as e:
             return {
                 "message": "Something went wrong",
+                "error": e
             }, 500
         
         # Set the tenant database such that it will query that specific one

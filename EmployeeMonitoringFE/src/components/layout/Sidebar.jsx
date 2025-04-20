@@ -3,22 +3,23 @@ import {
     FiHome, FiEye, FiUsers, FiShield, FiMap, FiAlertTriangle, FiSettings, FiLogOut, FiMoreVertical, FiX, FiChevronLeft, FiChevronRight, FiVideo
 } from 'react-icons/fi'; 
 import Logo from '../../assets/logo/Logo_Vision.webp'; 
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router'; // Import useLocation and ensure Link is from react-router-dom
 import { useUser } from '../../context/UserContext';
 
 const navItems = [
-    { text: 'Home', icon: <FiHome size={20} />, path: '/dashboard' },
-    { text: 'Observer mode', icon: <FiEye size={20} />, path: '/observer' },
-    { text: 'Employees', icon: <FiUsers size={20} />, path: '/employees' },
-    { text: 'Security Personnel', icon: <FiShield size={20} />, path: '/security' },
-    { text: 'Video Cameras', icon: <FiVideo size={20} />, path: '/video-cameras' }, 
-    { text: 'Alerts', icon: <FiAlertTriangle size={20} />, path: '/alerts' },
+    { text: 'Home', icon: <FiHome size={20} />, path: '/dashboard', allowedRoles: ['ADMIN', 'SECURITY'] },
+    { text: 'Observer mode', icon: <FiEye size={20} />, path: '/observer', allowedRoles: ['ADMIN', 'SECURITY'] },
+    { text: 'Employees', icon: <FiUsers size={20} />, path: '/employees', allowedRoles: ['ADMIN'] },
+    { text: 'Security Personnel', icon: <FiShield size={20} />, path: '/security', allowedRoles: ['ADMIN'] },
+    { text: 'Video Cameras', icon: <FiVideo size={20} />, path: '/video-cameras', allowedRoles: ['ADMIN', 'SECURITY'] }, 
+    { text: 'Alerts', icon: <FiAlertTriangle size={20} />, path: '/alerts', allowedRoles: ['ADMIN', 'SECURITY'] },
 ];
 
 const Sidebar = () => {
     const [isOpen, setIsOpen] = useState(true);
     const [isOptionsOpen, setIsOptionsOpen] = useState(false);
-    const {logout} = useUser()
+    const { logout, user } = useUser(); // Get user object which should contain the role
+    const location = useLocation(); // Get current location
 
     useEffect(() => {
         const handleResize = () => {
@@ -70,20 +71,27 @@ const Sidebar = () => {
                 {/* Navigation Links */}
                 <nav className="flex-grow mt-4">
                     <ul>
-                        {navItems.map((item) => (
-                            <li key={item.text} className="mb-2">
-                                {/* Use Link component for routing */}
-                                <Link
-                                    to={item.path}
-                                    className={`flex items-center p-3 rounded-md mx-2 hover:bg-gray-700 transition-colors duration-200 ${!isOpen ? 'justify-center' : ''}`}
-                                >
-                                    <span className="flex-shrink-0">{item.icon}</span>
-                                    <span className={`ml-3 transition-opacity duration-200 ${isOpen ? 'opacity-100 whitespace-nowrap' : 'opacity-0 hidden'}`}>
-                                        {item.text}
-                                    </span>
-                                </Link>
-                            </li>
-                        ))}
+                        {navItems.map((item) => {
+                            // Determine if the current user's role is allowed to see this item
+                            const userRoles = user?.roles || []; // Ensure userRoles is an array
+                            const isAllowed = userRoles.some(role => item.allowedRoles.includes(role));
+                            const isActive = location.pathname === item.path; // Check if the current path matches the item's path
+
+                            // Render the item only if the user's role is allowed
+                            return isAllowed ? (
+                                <li key={item.text} className="mb-2">
+                                    <Link
+                                        to={item.path}
+                                        className={`flex items-center p-3 rounded-md mx-2 transition-colors duration-200 ${isActive ? 'bg-gray-700' : 'hover:bg-gray-700'} ${!isOpen ? 'justify-center' : ''}`}
+                                    >
+                                        <span className="flex-shrink-0">{item.icon}</span>
+                                        <span className={`ml-3 transition-opacity duration-200 ${isOpen ? 'opacity-100 whitespace-nowrap' : 'opacity-0 hidden'}`}>
+                                            {item.text}
+                                        </span>
+                                    </Link>
+                                </li>
+                            ) : null; // Don't render the item if the role is not allowed
+                        })}
                     </ul>
                 </nav>
 

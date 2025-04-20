@@ -4,11 +4,12 @@ import { SERVER_URL } from "../../utils/constants";
 import { useState, useEffect } from "react";
 import background from "../../assets/imgs/login1bg.png";
 import LogoName from "../../components/LogoComponent";
+import { useNavigate } from "react-router";
 
 const SecurityRegistration = () => {
     const [searchParams] = useSearchParams();
     const code = searchParams.get("code");
-
+    const navigate = useNavigate();
     const [inviterEmail, setInviterEmail] = useState("");
     const [organization, setOrganization] = useState("");
     const [error, setError] = useState("");
@@ -60,10 +61,17 @@ const SecurityRegistration = () => {
         console.log("Form Submitted Data:", registrationData);
 
         try {
+            const res = await axios.post(`${SERVER_URL}/users/security/register`, registrationData, {
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
 
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            console.log("Simulated registration successful");
-
+            if (res.status === 201) {
+                navigate("/login")
+            } else {
+                setError(`Registration failed: Status ${res.status}`);
+            }
 
         } catch (err) {
             console.error("Registration error:", err);

@@ -12,8 +12,6 @@ def init_auth_db(app):
     setup_users_db(app)
     print("Database initialized")
     db = get_users_db()
-    super_admin_role = Role(name="SUPERADMIN")
-    db.add(super_admin_role)
     admin_role = Role(name="ADMIN")
     db.add(admin_role)
     security_guard_role = Role(name="SECURITY")
@@ -35,6 +33,8 @@ def init_auth_db(app):
     db.add(create_tenant_permission)
     create_video_camera_permission = Permission(name="CREATE_VIDEO_CAMERA")
     db.add(create_video_camera_permission)
+    read_video_camera_permission = Permission(name="READ_VIDEO_CAMERA")
+    db.add(read_video_camera_permission)
 
     get_persons_detected = Permission(name="GET_PERSONS_DETECTED")
     db.add(get_persons_detected)
@@ -48,18 +48,6 @@ def init_auth_db(app):
     db.add(delete_zone_permission)
 
     db.flush()
-    db.add(RolePermission(role_id=super_admin_role.id, permission_id=get_alerts_permission.id))
-    db.add(RolePermission(role_id=super_admin_role.id, permission_id=create_blacklist_permission.id))
-    db.add(RolePermission(role_id=super_admin_role.id, permission_id=delete_blacklist_permission.id))
-    db.add(RolePermission(role_id=super_admin_role.id, permission_id=create_employee_permission.id))
-    db.add(RolePermission(role_id=super_admin_role.id, permission_id=delete_employee_permission.id))
-    db.add(RolePermission(role_id=super_admin_role.id, permission_id=create_tenant_permission.id))
-    db.add(RolePermission(role_id=super_admin_role.id, permission_id=create_video_camera_permission.id))
-    db.add(RolePermission(role_id=super_admin_role.id, permission_id=get_persons_detected.id))
-    db.add(RolePermission(role_id=super_admin_role.id, permission_id=read_video_stream.id))
-    db.add(RolePermission(role_id=super_admin_role.id, permission_id=create_zone_permission.id))
-    db.add(RolePermission(role_id=super_admin_role.id, permission_id=delete_zone_permission.id))
-
     db.add(RolePermission(role_id=admin_role.id, permission_id=get_alerts_permission.id))
     db.add(RolePermission(role_id=admin_role.id, permission_id=create_blacklist_permission.id))
     db.add(RolePermission(role_id=admin_role.id, permission_id=delete_blacklist_permission.id))
@@ -70,18 +58,18 @@ def init_auth_db(app):
     db.add(RolePermission(role_id=admin_role.id, permission_id=create_zone_permission.id))
     db.add(RolePermission(role_id=admin_role.id, permission_id=delete_zone_permission.id))
     db.add(RolePermission(role_id=admin_role.id, permission_id=create_video_camera_permission.id))
+    db.add(RolePermission(role_id=admin_role.id, permission_id=read_video_camera_permission.id))
 
     db.add(RolePermission(role_id=security_guard_role.id, permission_id=get_alerts_permission.id))
     db.add(RolePermission(role_id=security_guard_role.id, permission_id=get_persons_detected.id))
     db.add(RolePermission(role_id=security_guard_role.id, permission_id=read_video_stream.id))
-
-    ## Adding SUPERADMIN User
+    db.add(RolePermission(role_id=security_guard_role.id, permission_id=read_video_camera_permission.id))
 
     tenant = Tenant(name="ASE")
     db.add(tenant)
     db.flush()
     super_admin = User(email="robertflorianp037@gmail.com", password=hash_password("admin"), phoneNumber="0728922213", is_verified=True, tenant_id=tenant.id)
-    super_admin.roles.append(super_admin_role)
+    super_admin.roles.append(admin_role)
     db.add(super_admin)
     db.commit()
     print("Done")

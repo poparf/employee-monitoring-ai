@@ -13,8 +13,8 @@ class Employee(Entity):
     role: Mapped[str] = mapped_column()
     department: Mapped[str] = mapped_column()
     
-    encodedFace: Mapped[LargeBinary] = mapped_column(LargeBinary)
-    profilePicture: Mapped[str] = mapped_column()
+    encodedFace: Mapped[LargeBinary] = mapped_column(LargeBinary, nullable=True)
+    profilePicture: Mapped[str] = mapped_column(nullable=True)
 
     detection_list: Mapped[List["PersonDetected"]] = relationship()
     alerts: Mapped[List["Alert"]] = relationship() 

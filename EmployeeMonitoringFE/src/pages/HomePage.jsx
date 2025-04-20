@@ -3,8 +3,7 @@ import { Link } from 'react-router'; // Updated import
 import Sidebar from "../components/layout/Sidebar";
 import { FiAlertTriangle, FiVideo, FiUsers, FiShield, FiArrowRightCircle } from 'react-icons/fi';
 import { getAlerts, getCamerasList, getAllEmployees, getAllSecurity } from '../services/MainService';
-
-
+import { useUser } from '../context/UserContext';
 
 // Helper to format timestamp
 const formatTimestamp = (isoString) => {
@@ -16,20 +15,19 @@ const formatTimestamp = (isoString) => {
     }
 };
 
-// Reusable Card Component - Updated Styling
-const DashboardCard = ({ icon, title, value, linkTo, linkText = "View Details", bgColor = 'bg-neutral-700', iconBgColor = 'bg-cyan-600' }) => (
-    <div className={`${bgColor} p-6 rounded-lg shadow-md text-white flex flex-col justify-between hover:brightness-110 transition-all duration-200`}>
-        <div className="flex items-start justify-between mb-4">
-            {/* Icon in a square */}
-            <div className={`p-3 rounded-md ${iconBgColor}`}>
-                 <div className="text-2xl">{icon}</div>
+// Updated DashboardCard to match StatCard structure from AlertsPage
+const DashboardCard = ({ icon, title, value, bgColor = 'bg-neutral-800', iconBgColor = 'bg-neutral-700' }) => (
+    <div className={`${bgColor} p-5 rounded-lg shadow-md mb-4`}> {/* Match StatCard container */}
+        <div className="flex items-center mb-2"> {/* Match StatCard inner flex */}
+            <div className={`${iconBgColor} p-3 rounded-md mr-4`}> {/* Match StatCard icon container */}
+                {icon}
             </div>
-            <h3 className="text-lg font-semibold text-right ml-2">{title}</h3>
+            <div className="flex-1"> {/* Match StatCard text container */}
+                <span className="text-lg font-semibold block">{title}</span> {/* Match StatCard title style */}
+                {/* Allow value to be complex JSX, but default styling matches StatCard */}
+                <div className="text-2xl font-bold">{value}</div> {/* Match StatCard value style */}
+            </div>
         </div>
-        <div className="text-3xl font-bold mb-4 text-right">{value}</div>
-        <Link to={linkTo} className="text-sm text-cyan-400 hover:text-cyan-300 flex items-center self-start mt-auto">
-            {linkText} <FiArrowRightCircle className="ml-1" />
-        </Link>
     </div>
 );
 
@@ -41,33 +39,29 @@ const HomePage = () => {
     const [latestAlerts, setLatestAlerts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const { isAdmin } = useUser()
 
     useEffect(() => {
         const loadData = async () => {
             setLoading(true);
             setError(null); // Reset error on new load
             try {
-                // Fetch unresolved alerts count
                 const alertsResponse = await getAlerts({ status: 'active' });
                 setUnresolvedAlerts(alertsResponse.data.alerts?.length || 0);
 
-                // Fetch camera status
                 const camerasResponse = await getCamerasList();
-                // Assuming response format is { cameras: [{ status: 'active'/'inactive', ... }] }
-                // Adjust based on actual API response structure
+
                 const cams = camerasResponse.data.cameras || [];
                 const activeCams = cams.filter(cam => cam.status === 'active').length; // Adjust property name if needed
                 const inactiveCams = cams.length - activeCams;
                 setCameraCounts({ active: activeCams, inactive: inactiveCams });
 
-                // Fetch employee count
-                const employeesResponse = await getAllEmployees();
-                setEmployeeCount(employeesResponse.data.employees?.length || 0);
-
-                // Fetch security count
-                const securityResponse = await getAllSecurity();
-                setSecurityCount(securityResponse.data.length || 0);
-
+                if(isAdmin()) {
+                    const employeesResponse = await getAllEmployees();
+                    setEmployeeCount(employeesResponse.data.employees?.length || 0);
+                    const securityResponse = await getAllSecurity();
+                    setSecurityCount(securityResponse.data.length || 0);
+                }
                 // Fetch latest alerts (e.g., last 5, assuming default sort is latest first or add sort param)
                 const latestAlertsResponse = await getAlerts({ /* Add limit/sort if available */ });
                 // Ensure alerts is an array before slicing
@@ -108,49 +102,44 @@ const HomePage = () => {
                     </div>
                 ) : (
                     <>
-                        {/* Cards Section - Added different background colors */}
+                        {/* Cards Section - Using updated DashboardCard */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                             <DashboardCard
-                                icon={<FiAlertTriangle />}
+                                icon={<FiAlertTriangle className="h-6 w-6 text-white" />} // Added icon size/color for consistency
                                 title="Unresolved Alerts"
                                 value={unresolvedAlerts}
-                                linkTo="/alerts"
-                                linkText="View Alerts"
-                                bgColor="bg-red-800" // Example color
-                                iconBgColor="bg-red-600"
+                                bgColor="bg-red-900" // Adjusted colors to match AlertsPage examples
+                                iconBgColor="bg-red-700"
                             />
                             <DashboardCard
-                                icon={<FiVideo />}
+                                icon={<FiVideo className="h-6 w-6 text-white" />} // Added icon size/color
                                 title="Camera Status"
                                 value={
-                                    <div className="text-lg text-right"> {/* Smaller text, right aligned */}
-                                        <p>Active: <span className="font-bold">{cameraCounts.active}</span></p>
-                                        <p>Inactive: <span className="font-bold">{cameraCounts.inactive}</span></p>
+                                    // Keep custom value structure, but adjust text size if needed
+                                    <div className="text-xl text-right"> {/* Adjusted text size slightly */}
+                                        <p>Active: <span className="font-bold">{cameraCounts.active}</span> Inactive: <span className="font-bold">{cameraCounts.inactive}</span></p>
                                     </div>
                                 }
-                                linkTo="/video-cameras"
-                                linkText="Manage Cameras"
-                                bgColor="bg-blue-800" // Example color
-                                iconBgColor="bg-blue-600"
+                                bgColor="bg-blue-900" // Example color adjustment
+                                iconBgColor="bg-blue-700"
                             />
-                            <DashboardCard
-                                icon={<FiUsers />}
-                                title="Total Employees"
-                                value={employeeCount}
-                                linkTo="/employees"
-                                linkText="View Employees"
-                                bgColor="bg-green-800" // Example color
-                                iconBgColor="bg-green-600"
-                            />
-                            <DashboardCard
-                                icon={<FiShield />}
-                                title="Security Personnel"
-                                value={securityCount}
-                                linkTo="/security" // Link might need adjustment
-                                linkText="View Security"
-                                bgColor="bg-yellow-800" // Example color
-                                iconBgColor="bg-yellow-600"
-                            />
+                            {isAdmin() && (<>
+                                <DashboardCard
+                                    icon={<FiUsers className="h-6 w-6 text-white" />} // Added icon size/color
+                                    title="Total Employees"
+                                    value={employeeCount}
+                                    bgColor="bg-green-900" // Adjusted colors
+                                    iconBgColor="bg-green-700"
+                                />
+                                <DashboardCard
+                                    icon={<FiShield className="h-6 w-6 text-white" />} // Added icon size/color
+                                    title="Security Personnel"
+                                    value={securityCount}
+                                    bgColor="bg-yellow-900" // Adjusted colors (using darker shades)
+                                    iconBgColor="bg-yellow-700"
+                                />
+                            </>
+                            )}
                         </div>
 
                         {/* Latest Alerts Table - Removed Actions column */}

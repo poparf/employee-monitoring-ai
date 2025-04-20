@@ -159,35 +159,18 @@ const SecurityList = () => {
                             <table className="w-full text-left table-auto">
                                 <thead className="bg-neutral-700 text-neutral-200">
                                     <tr>
-                                        <th className="px-4 py-3">Photo</th>
-                                        <th className="px-4 py-3">Name</th>
+                                        <th className="px-4 py-3">Email</th>
                                         <th className="px-4 py-3">Phone</th>
-                                        <th className="px-4 py-3">Department</th>
-                                        <th className="px-4 py-3">Position</th>
+                                        <th className="px-4 py-3">Status</th>
                                         <th className="px-4 py-3">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {personnel.map((person) => (
                                         <tr key={person.id} className="border-b border-neutral-700 hover:bg-neutral-700/50 transition-colors">
-                                            <td className="px-4 py-3">
-                                                <div className="w-10 h-10 rounded-full overflow-hidden bg-neutral-600">
-                                                    {person.id ? (
-                                                        <AuthenticatedImage 
-                                                            employeeId={person.id}
-                                                            alt={`${person.firstName} ${person.lastName}`}
-                                                        />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-neutral-400">
-                                                            {person.firstName?.charAt(0)}{person.lastName?.charAt(0)}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3">{`${person.firstName} ${person.lastName}`}</td>
+                                            <td className="px-4 py-3">{`${person.email}`}</td>
                                             <td className="px-4 py-3">{person.phoneNumber}</td>
-                                            <td className="px-4 py-3">{person.department || 'N/A'}</td>
-                                            <td className="px-4 py-3">{person.role || 'N/A'}</td>
+                                            <td className='px-4 py-3'>TODO</td>
                                             <td className="px-4 py-3">
                                                 <div className="flex space-x-2">
                                                     <Link 

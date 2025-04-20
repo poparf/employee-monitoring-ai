@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from flaskr.entities.auth_db.AuthBaseEntity import AuthBaseEntity
 from flaskr.entities.auth_db.Tenant import Tenant
 from flaskr.entities.auth_db.EmailCodes import EmailCodes
+from flaskr.entities.auth_db.InvitationCodes import InvitationCodes
 from flaskr.entities.auth_db.Role import Role
 from flaskr.entities.auth_db.RoleUser import RoleUser
 from sqlalchemy import LargeBinary
@@ -23,6 +24,7 @@ class User(AuthBaseEntity):
     # Relationships
     tenant: Mapped["Tenant"] = relationship(back_populates="users")
     email_codes: Mapped[List["EmailCodes"]] = relationship(back_populates="user")
+    invitation_codes: Mapped[List["InvitationCodes"]] = relationship(back_populates="user")
 
     # Many-to-many relationship with Role
     roles: Mapped[List["Role"]] = relationship(secondary="roles_users")

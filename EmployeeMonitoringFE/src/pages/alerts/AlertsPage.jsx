@@ -47,14 +47,12 @@ const AlertsPage = () => {
         }
     };
 
-    // Calculate alert statistics
     const alertStats = {
         total: alerts.length,
         active: alerts.filter(alert => alert.status === 'active').length,
         resolved: alerts.filter(alert => alert.status === 'resolved').length
     };
 
-    // Component for statistics card
     const StatCard = ({ icon, title, value, bgColor, iconBgColor }) => (
         <div className={`${bgColor} p-5 rounded-lg shadow-md mb-4`}>
             <div className="flex items-center mb-2">

@@ -47,7 +47,6 @@ const VideoCameraFeed = ({ camera, detailed = true, onClickHandler, streamKey })
     setStreamUrl(newUrl);
   };
   
-  const isActive = camera.status?.toLowerCase() === 'active';
   
   return (
     <div 
@@ -67,10 +66,10 @@ const VideoCameraFeed = ({ camera, detailed = true, onClickHandler, streamKey })
         </h3>
         <div className={`
           px-2 py-1 rounded-full text-xs font-medium flex items-center
-          ${isActive ? 'bg-green-500 text-green-900' : 'bg-red-500 text-red-900'}
+          ${!isStreamLoading ? 'bg-green-500 text-green-900' : 'bg-red-500 text-red-900'}
         `}>
-          <span className={`mr-1 w-2 h-2 rounded-full ${isActive ? 'bg-green-900 animate-pulse' : 'bg-red-900'}`}></span>
-          {isActive ? 'LIVE' : 'OFFLINE'}
+          <span className={`mr-1 w-2 h-2 rounded-full ${!isStreamLoading ? 'bg-green-900 animate-pulse' : 'bg-red-900'}`}></span>
+          {!isStreamLoading ? 'LIVE' : 'OFFLINE'}
         </div>
       </div>
       
