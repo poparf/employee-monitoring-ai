@@ -5,7 +5,9 @@ from flask import current_app, g
 from sqlalchemy_utils import database_exists, create_database
 import threading
 from sqlalchemy.orm import Session, sessionmaker, configure_mappers
+import os
 
+from flaskr.entities.PPE import PPE
 # Registry stores engines and session factories
 engine_registry = {}
 session_factory_registry = {}
@@ -49,9 +51,11 @@ def setup_tenant_db(tenant_id):
     base_url = app.config['GENERAL_DATABASE_URL']
     db_url = f"{base_url}/{tenant_id}"
     engine = create_engine(db_url)
-    
+    first_time_created = False
+
     if not database_exists(engine.url):
         create_database(engine.url)
+        first_time_created = True
 
     Entity.metadata.bind = engine
     Entity.metadata.create_all(bind=engine)
@@ -64,6 +68,39 @@ def setup_tenant_db(tenant_id):
             bind=engine,
             class_=RoutingSession
         )
+    
+    if first_time_created:
+        with session_factory_registry[tenant_id]() as session:
+            ppe_items = {
+                "Excavator": "excavator.jpg",
+                "Gloves": "gloves.jpg",
+                "Hardhat": "hardhat.jpg",
+                "Ladder": "ladder.jpg",
+                "Mask": "mask.jpg",
+                "NO-Hardhat": "no-hardhat.jpg",
+                "NO-Mask": "no-mask.jpg",
+                "NO-Safety Vest": "no-safety-vest.jpg",
+                "Person": "person.jpg",
+                "SUV": "suv.jpg",
+                "Safety Cone": "safety-cone.jpg",
+                "Safety Vest": "safety-vest.jpg",
+                "bus": "bus.jpg",
+                "dump truck": "dump-truck.jpg",
+                "fire hydrant": "fire-hydrant.jpg",
+                "machinery": "machinery.jpg",
+                "mini-van": "mini-van.jpg",
+                "sedan": "sedan.jpg",
+                "semi": "semi.jpg",
+                "trailer": "trailer.jpg",
+                "truck": "truck.jpg",
+                "truck and trailer": "truck-and-trailer.jpg",
+                "van": "van.jpg",
+                "vehicle": "vehicle.jpg",
+                "wheel loader": "wheel-loader.jpg"
+            }
+            for ppe_name, ppe_image_path in ppe_items.items():
+                session.add(PPE(name=ppe_name, image=app.config["PPE_PICTURES_PATH"] + '\\' + ppe_image_path))
+            session.commit()
     app.logger.info("Tenant database created: %s", tenant_id)
     app.logger.info("Session registry: ", session_factory_registry)
 

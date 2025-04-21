@@ -28,6 +28,7 @@ def create_app(test_config=None):
         USERS_DATABASE_URL = os.getenv("USERS_DATABASE_URL"),
         PROFILE_PICTURES_PATH = os.path.join(app.root_path, 'static\\profile_pictures'),
         MASK_ZONES_PATH = os.path.join(app.root_path, 'static\\mask_zones'),
+        PPE_PICTURES_PATH = os.path.join(app.root_path, 'static\\ppe_pictures'),
         ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg']
     )
 

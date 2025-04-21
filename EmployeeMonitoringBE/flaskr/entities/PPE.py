@@ -5,9 +5,10 @@ from typing import List
 
 class PPE(Entity):
     __tablename__ = "ppes"
-
+    __table_args__ = {"extend_existing": True}
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column()
+    image: Mapped[str] = mapped_column(nullable=True)
 
     ppe_recognitions: Mapped[List["PPERecognition"]] = relationship()
 
