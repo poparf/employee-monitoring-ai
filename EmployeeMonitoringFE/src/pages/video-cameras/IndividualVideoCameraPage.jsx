@@ -4,25 +4,88 @@ import Sidebar from "../../components/layout/Sidebar";
 import { getCamera } from '../../services/MainService';
 import { useUser } from '../../context/UserContext';
 import { SERVER_URL } from '../../utils/constants';
-import { 
-    FiEdit, 
-    FiSave, 
-    FiPlus, 
-    FiTrash, 
-    FiSquare, 
-    FiGrid, 
-    FiArrowLeft, 
-    FiMapPin, 
+import {
+    FiEdit,
+    FiSave,
+    FiPlus,
+    FiTrash,
+    FiSquare,
+    FiArrowDown,
+    FiArrowUp,
+    FiGrid,
+    FiArrowLeft,
+    FiMapPin,
     FiServer,
     FiLink,
     FiLock,
     FiWifi,
     FiTag,
-    FiAlertCircle, 
+    FiAlertCircle,
     FiInfo,
     FiRefreshCw
 } from 'react-icons/fi';
 import axios from 'axios';
+
+// Import PPE object images
+import excavatorImg from '../../assets/objects/excavator.jpg';
+import glovesImg from '../../assets/objects/gloves.jpg';
+import hardhatImg from '../../assets/objects/hardhat.jpg';
+import ladderImg from '../../assets/objects/ladder.jpg';
+import maskImg from '../../assets/objects/mask.jpg';
+import noHardhatImg from '../../assets/objects/no-hardhat.jpg';
+import noMaskImg from '../../assets/objects/no-mask.jpg';
+import noSafetyVestImg from '../../assets/objects/no-safety-vest.jpg';
+import personImg from '../../assets/objects/person.jpg';
+import suvImg from '../../assets/objects/suv.jpg';
+import safetyConeImg from '../../assets/objects/safety-cone.jpg';
+import safetyVestImg from '../../assets/objects/safety-vest.jpg';
+import busImg from '../../assets/objects/bus.jpg';
+import dumpTruckImg from '../../assets/objects/dump-truck.jpg';
+import fireHydrantImg from '../../assets/objects/fire-hydrant.jpg';
+import machineryImg from '../../assets/objects/machinery.jpg';
+import miniVanImg from '../../assets/objects/mini-van.jpg';
+import sedanImg from '../../assets/objects/sedan.jpg';
+import semiImg from '../../assets/objects/semi.jpg';
+import trailerImg from '../../assets/objects/trailer.jpg';
+import truckImg from '../../assets/objects/truck.jpg';
+import truckAndTrailerImg from '../../assets/objects/truck-and-trailer.jpg';
+import vanImg from '../../assets/objects/van.jpg';
+import vehicleImg from '../../assets/objects/vehicle.jpg';
+import wheelLoaderImg from '../../assets/objects/wheel-loader.jpg';
+
+// Create a mapping of PPE objects to their images
+const ppeImageMapping = {
+    "Excavator": excavatorImg,
+    "Gloves": glovesImg,
+    "Hardhat": hardhatImg,
+    "Ladder": ladderImg,
+    "Mask": maskImg,
+    "NO-Hardhat": noHardhatImg,
+    "NO-Mask": noMaskImg,
+    "NO-Safety Vest": noSafetyVestImg,
+    "Person": personImg,
+    "SUV": suvImg,
+    "Safety Cone": safetyConeImg,
+    "Safety Vest": safetyVestImg,
+    "bus": busImg,
+    "dump truck": dumpTruckImg,
+    "fire hydrant": fireHydrantImg,
+    "machinery": machineryImg,
+    "mini-van": miniVanImg,
+    "sedan": sedanImg,
+    "semi": semiImg,
+    "trailer": trailerImg,
+    "truck": truckImg,
+    "truck and trailer": truckAndTrailerImg,
+    "van": vanImg,
+    "vehicle": vehicleImg,
+    "wheel loader": wheelLoaderImg
+};
+let ppe_objects = [
+    "Excavator", "Gloves", "Hardhat", "Ladder", "Mask", "NO-Hardhat", "NO-Mask", "NO-Safety Vest",
+    "Person", "SUV", "Safety Cone", "Safety Vest", "bus", "dump truck", "fire hydrant", "machinery",
+    "mini-van", "sedan", "semi", "trailer", "truck", "truck and trailer", "van", "vehicle", "wheel loader"
+];
 
 const IndividualVideoCameraPage = () => {
     const { cameraId } = useParams();
@@ -39,16 +102,34 @@ const IndividualVideoCameraPage = () => {
     const [isStreamActive, setIsStreamActive] = useState(false);
     const [isFaceRecognitionEnabled, setIsFaceRecognitionEnabled] = useState(false);
     const { token } = useUser();
-    
+    const [filters, setFilters] = useState([])
+
     const faceRecognitionSliderRef = useRef(null);
     const videoContainerRef = useRef(null);
     const streamRef = useRef(null);
     const refreshTimerRef = useRef(null);
 
-    const buildStreamUrl = (cameraObj, tokenVal, faceRecEnabled) => {
-        if (!cameraObj?.name || !tokenVal) return '';
-        let url = `${SERVER_URL}/video-cameras/${cameraObj.name}/stream?token=${tokenVal}`;
-        if (faceRecEnabled) url += '&face_recognition=true';
+    const handleSaveFilters = () => {
+        let checkedFilters = []
+        const filterCheckboxes = document.querySelectorAll('#expandableDiv input[type="checkbox"][data-filter-label]');
+        filterCheckboxes.forEach((checkbox) => {
+            if (checkbox.checked) {
+                checkedFilters.push(checkbox.getAttribute('data-filter-label'));
+            }
+        })
+        setFilters(checkedFilters);
+        setStreamUrl(buildStreamUrl());
+    }
+
+    const buildStreamUrl = () => {
+        if (!camera?.name || !token) return '';
+        let url = `${SERVER_URL}/video-cameras/${camera.name}/stream?token=${token}`;
+        if (isFaceRecognitionEnabled) url += '&face_recognition=true';
+        if (filters.length > 0) {
+            filters.forEach((filter) => {
+                url += `&${filter}=true`;
+            });
+        }
         return url;
     };
 
@@ -60,11 +141,9 @@ const IndividualVideoCameraPage = () => {
             const response = await getCamera(cameraId);
             const cam = response.data.camera;
             setCamera(cam);
-            console.log(cam)
-            const faceRec = cam?.filters?.face_recognition;
+            const faceRec = cam?.filters?.includes('face_recognition');
             setIsFaceRecognitionEnabled(faceRec);
-
-            setStreamUrl(buildStreamUrl(cam, token, faceRec));
+            setStreamUrl(buildStreamUrl());
         } catch (err) {
             console.error("Failed to fetch camera details:", err);
             setError("Failed to load camera details. Please try again later.");
@@ -78,14 +157,14 @@ const IndividualVideoCameraPage = () => {
     useEffect(() => {
         if (cameraId && token) {
             fetchCameraData();
-            
+
             refreshTimerRef.current = setInterval(() => {
                 if (camera && camera.name) {
                     setIsStreamActive(false);
                     setError(null);
                 }
             }, 120000);
-            
+
             return () => {
                 if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
             };
@@ -99,7 +178,7 @@ const IndividualVideoCameraPage = () => {
 
     useEffect(() => {
         if (camera && token) {
-            setStreamUrl(buildStreamUrl(camera, token, isFaceRecognitionEnabled));
+            setStreamUrl(buildStreamUrl());
             setIsStreamActive(false);
             setError(null);
         }
@@ -119,7 +198,7 @@ const IndividualVideoCameraPage = () => {
         setIsStreamActive(true);
         setError(null);
     };
-    
+
     const handleStreamError = () => {
         setError("Stream unavailable or failed to load. Please check camera status or refresh.");
         setIsStreamActive(false);
@@ -148,28 +227,28 @@ const IndividualVideoCameraPage = () => {
         if (currentZone && currentZone.points.length >= 3) {
             try {
                 setLoading(true);
-                
+
                 const zoneData = {
                     name: currentZone.name,
                     video_camera_id: cameraId,
                     points: currentZone.points
                 };
-                
+
                 const response = await axios.post(
                     `${SERVER_URL}/zone`,
                     zoneData,
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
-                
+
                 setZones([...zones, {
                     ...currentZone,
                     id: response.data.id || currentZone.id
                 }]);
-                
+
                 setEditMode(false);
                 setIsDrawing(false);
                 setCurrentZone(null);
-                
+
             } catch (err) {
                 console.error("Failed to save zone:", err);
                 setError("Failed to save zone. Please try again.");
@@ -184,14 +263,14 @@ const IndividualVideoCameraPage = () => {
     const deleteZone = async (zoneId) => {
         try {
             setLoading(true);
-            
+
             await axios.delete(
                 `${SERVER_URL}/zone/${zoneId}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-            
+
             setZones(zones.filter(zone => zone.id !== zoneId));
-            
+
         } catch (err) {
             console.error("Failed to delete zone:", err);
             setError("Failed to delete zone. Please try again.");
@@ -202,14 +281,14 @@ const IndividualVideoCameraPage = () => {
 
     const handleCanvasClick = (e) => {
         if (!isDrawing || !editMode) return;
-        
+
         const rect = e.target.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        
+
         setCurrentZone(prev => ({
             ...prev,
-            points: [...prev.points, {x, y}]
+            points: [...prev.points, { x, y }]
         }));
     };
 
@@ -220,7 +299,7 @@ const IndividualVideoCameraPage = () => {
     const handleToggleFaceRecognition = (event) => {
         const newFaceRecognitionState = event.target.checked;
         setIsFaceRecognitionEnabled(newFaceRecognitionState);
-    };    
+    };
 
     return (
         <div className="flex h-screen bg-neutral-900 text-white">
@@ -228,7 +307,7 @@ const IndividualVideoCameraPage = () => {
             <main className="flex-1 p-6 md:p-8 lg:p-10 overflow-y-auto">
                 <div className="flex justify-between items-center mb-8">
                     <div className="flex items-center">
-                        <button 
+                        <button
                             onClick={() => navigate('/video-cameras')}
                             className="mr-4 p-2 rounded hover:bg-neutral-800"
                         >
@@ -238,7 +317,7 @@ const IndividualVideoCameraPage = () => {
                             {loading ? 'Loading Camera...' : camera?.name || 'Camera Details'}
                         </h1>
                     </div>
-                    
+
                     {!editMode ? (
                         <div className="flex space-x-2">
                             <button
@@ -267,11 +346,10 @@ const IndividualVideoCameraPage = () => {
                             <button
                                 onClick={saveZone}
                                 disabled={!currentZone || currentZone.points.length < 3}
-                                className={`${
-                                    !currentZone || currentZone.points.length < 3 
-                                    ? 'bg-cyan-800 cursor-not-allowed' 
+                                className={`${!currentZone || currentZone.points.length < 3
+                                    ? 'bg-cyan-800 cursor-not-allowed'
                                     : 'bg-cyan-600 hover:bg-cyan-500'
-                                } text-white font-bold py-2 px-4 rounded inline-flex items-center transition-colors duration-200`}
+                                    } text-white font-bold py-2 px-4 rounded inline-flex items-center transition-colors duration-200`}
                             >
                                 <FiSave className="mr-2" />
                                 Save Zone
@@ -306,7 +384,7 @@ const IndividualVideoCameraPage = () => {
                                     {isStreamActive && !error ? 'LIVE' : 'OFFLINE'}
                                 </div>
                             </div>
-                            
+
                             <div className="relative aspect-video bg-black" ref={videoContainerRef} onClick={handleCanvasClick}>
                                 {streamUrl && camera?.name ? (
                                     <>
@@ -316,7 +394,7 @@ const IndividualVideoCameraPage = () => {
                                             src={streamUrl}
                                             alt={`Stream from ${camera.name}`}
                                             className="w-full h-full object-cover"
-                                            style={{ display: isStreamActive ? 'block' : 'none' }} 
+                                            style={{ display: isStreamActive ? 'block' : 'none' }}
                                             onLoad={handleStreamLoad}
                                             onError={handleStreamError}
                                         />
@@ -331,7 +409,7 @@ const IndividualVideoCameraPage = () => {
                                         {loading ? "Loading camera data..." : !camera?.name ? "Camera name missing." : "Stream URL not available."}
                                     </div>
                                 )}
-                                
+
                                 <svg className="absolute inset-0 w-full h-full pointer-events-none">
                                     {zones.map((zone) => (
                                         <polygon
@@ -340,7 +418,7 @@ const IndividualVideoCameraPage = () => {
                                             className="fill-cyan-500 fill-opacity-20 stroke-cyan-500 stroke-2"
                                         />
                                     ))}
-                                    
+
                                     {currentZone && currentZone.points.length > 0 && (
                                         <polygon
                                             points={polygonPoints(currentZone.points)}
@@ -350,17 +428,17 @@ const IndividualVideoCameraPage = () => {
                                 </svg>
                             </div>
                             {editMode && (
-                                    <div className="absolute inset-x-0 bottom-4 flex justify-center">
-                                        <div className="bg-black bg-opacity-70 text-white px-4 py-2 rounded">
-                                            Click to add points. Minimum 3 points needed.
-                                        </div>
+                                <div className="absolute inset-x-0 bottom-4 flex justify-center">
+                                    <div className="bg-black bg-opacity-70 text-white px-4 py-2 rounded">
+                                        Click to add points. Minimum 3 points needed.
                                     </div>
-                                )}
+                                </div>
+                            )}
                             <div className="mt-4">
                                 <label className="inline-flex items-center cursor-pointer">
-                                    <input 
-                                        type="checkbox" 
-                                        className="sr-only peer" 
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
                                         checked={isFaceRecognitionEnabled}
                                         ref={faceRecognitionSliderRef}
                                         onChange={handleToggleFaceRecognition}
@@ -369,14 +447,57 @@ const IndividualVideoCameraPage = () => {
                                     <span className="ms-3 text-sm font-medium text-neutral-300">Face Recognition</span>
                                 </label>
                             </div>
+
+                            <div>
+                                <div className="flex justify-center mt-4">
+                                    <button id="expandableButton"
+                                        onClick={(e) => {
+                                            const expandableDiv = document.getElementById('expandableDiv');
+
+                                            const arrowIcon = document.getElementById('expandableButton')
+
+                                            if (expandableDiv.style.display === 'none' || !expandableDiv.style.display) {
+                                                arrowIcon.classList.add('rotate-180');
+                                                expandableDiv.style.display = 'block';
+                                            } else {
+                                                expandableDiv.style.display = 'none';
+                                                arrowIcon.classList.remove('rotate-180');
+
+                                            }
+                                        }}
+                                        className="p-2 rounded-full bg-neutral-700 hover:bg-neutral-600 transition-colors"
+                                    >
+                                        <FiArrowDown size={20} />
+                                    </button>
+                                </div>
+                                <div id="expandableDiv" style={{ display: 'none' }} className="mt-4 p-4 bg-neutral-800 rounded-lg">
+                                    <p className="text-neutral-300">You can select what objects would you like to detect and where</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
+                                            {Object.entries(ppeImageMapping).map(([label, image]) => (
+                                        <div key={label} className="flex items-center bg-neutral-700 rounded p-3 shadow">
+                                            <img
+                                                src={image}
+                                                alt={label}
+                                                className="w-10 h-10 rounded bg-neutral-600 mr-3 object-cover"
+                                            />
+                                            <span className="flex-1 text-neutral-200">{label}</span>
+                                            <input data-filter-label={label} type="checkbox" className="w-5 h-5 accent-cyan-600" />
+                                        </div>
+                                        ))}
+                                    </div>
+                                    <div className='flex justify-center'>
+                                        <button className="cursor-pointer mt-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 px-4 rounded" onClick={handleSaveFilters}>Save filters</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        
+
                         <div className="bg-neutral-800 rounded-lg shadow-md p-4 flex flex-col">
                             <h2 className="text-xl font-semibold mb-4 flex items-center">
                                 <FiInfo className="mr-2" />
                                 Camera Information
                             </h2>
-                            
+
                             <div className="mb-6 space-y-2">
                                 <p className="flex justify-between py-2 border-b border-neutral-700">
                                     <span className="text-neutral-400 flex items-center"><FiTag className="mr-2" />Name:</span>
@@ -413,12 +534,12 @@ const IndividualVideoCameraPage = () => {
                                     <span className="font-mono text-xs">rtsp://{camera?.username}:{camera?.password}@{camera?.ip}:{camera?.port}/stream2</span>
                                 </p>
                             </div>
-                            
+
                             <h3 className="text-lg font-semibold mb-2 flex items-center">
                                 <FiGrid className="mr-2" />
                                 Defined Zones ({zones.length})
                             </h3>
-                            
+
                             {zones.length === 0 ? (
                                 <div className="text-center py-4 text-neutral-500 bg-neutral-700/30 rounded">
                                     No zones defined. Click "Add Zone" to create one.
@@ -434,7 +555,7 @@ const IndividualVideoCameraPage = () => {
                                             <div className="flex space-x-2">
                                                 <button
                                                     className="p-1 text-neutral-400 hover:text-white"
-                                                    onClick={() => {/* Edit zone functionality */}}
+                                                    onClick={() => {/* Edit zone functionality */ }}
                                                 >
                                                     <FiEdit size={16} />
                                                 </button>

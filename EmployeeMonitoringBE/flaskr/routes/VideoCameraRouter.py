@@ -13,6 +13,7 @@ import io
 from threading import Thread, Lock
 import time
 import dlib
+from ultralytics import YOLO
 
 bp = Blueprint("video-cameras", __name__, url_prefix="/video-cameras")
 
@@ -105,14 +106,28 @@ def create_video_camera(current_user):
         return {"message": "Internal server error"}, 500
 
 def process_camera_frames(camera_name, rtsp_url,
-                          face_recognition_filter=False,
-                            person_detection_filter=False,
-                            ppe_recognition_filter=False,
+                          filters,
                             known_face_encodings=[],
                             known_face_names=[]):
     print(f"Starting stream processing for {camera_name}")
     cuda_available = dlib.DLIB_USE_CUDA
     print(f"CUDA available: {cuda_available}")
+
+    # --- Load the YOLO model ---
+    # Ensure this path is correct relative to the execution context
+    # Or use an absolute path
+    model_path = "flaskr/ML/PPE_model/my_model.pt"
+    try:
+        model = YOLO(model_path, task='detect')
+        print(f"YOLO model loaded successfully from {model_path}")
+        yolo_labels = model.names
+        print("YOLO labels:", yolo_labels)
+    except Exception as e:
+        print(f"Error loading YOLO model: {e}")
+        model = None
+    # -------------------------
+
+
 
     cap = cv.VideoCapture(rtsp_url)
     #cap = cv.VideoCapture(0)
@@ -141,7 +156,7 @@ def process_camera_frames(camera_name, rtsp_url,
 
         if process_this_frame:
             try:
-                if face_recognition_filter and known_face_encodings:
+                if "face_recognition" in filters and known_face_encodings:
                     print("detecting faces")
                     small_frame = cv.resize(frame, (0, 0), fx=0.25, fy=0.25)
                     rgb_small_frame = np.ascontiguousarray(small_frame[:, :, ::-1])
@@ -173,15 +188,22 @@ def process_camera_frames(camera_name, rtsp_url,
             except Exception as e:
                 print(f"Error in face recognition: {e}")
             
-            # Add other filter processing as needed
-            if person_detection_filter:
-                # Person detection code
-                pass
-                
-            if ppe_recognition_filter:
-                # PPE recognition code
-                pass
-                
+            # activate YOLO for every filter that is present in filters except face_recognition
+            yolo_active_filters = [f for f in filters if f != "face_recognition"]
+            if model is not None and yolo_active_filters:
+                try:
+                    results = model.predict(frame, conf=0.5, iou=0.5, classes=yolo_active_filters)
+                    for result in results:
+                        boxes = result.boxes
+                        for box in boxes:
+                            x1, y1, x2, y2 = map(int, box.xyxy[0])
+                            conf = box.conf[0]
+                            cls = int(box.cls[0])
+                            label = f"{yolo_labels[cls]} {conf:.2f}"
+                            cv.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                            cv.putText(frame, label, (x1, y1 - 10), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                except Exception as e:
+                    print(f"Error in YOLO detection: {e}")
         process_this_frame = not process_this_frame
 
         success, jpeg_frame = cv.imencode('.jpg', frame)
@@ -261,9 +283,17 @@ def get_camera(camera_name):
     if code != 200:
         return res, code
     current_user = res
-    face_recognition_filter = request.args.get("face_recognition", "false").lower() == "true"
-    person_detection_filter = request.args.get("person_detection", "false").lower() == "true"
-    ppe_recognition_filter = request.args.get("ppe_recognition", "false").lower() == "true"
+
+    valid_filters = [
+        "Excavator", "Gloves", "Hardhat", "Ladder", "Mask", "NO-Hardhat", "NO-Mask", "NO-Safety Vest",
+        "Person", "SUV", "Safety Cone", "Safety Vest", "bus", "dump truck", "fire hydrant", "machinery",
+        "mini-van", "sedan", "semi", "trailer", "truck", "truck and trailer", "van", "vehicle", "wheel loader","face_recognition"
+    ]
+    activated_filters = []
+    for arg in request.args:
+        if arg in valid_filters:
+            if request.args.get(arg).lower() == "true":
+                activated_filters.append(arg)
 
     db = get_tenant_db()
     camera = db.query(VideoCamera).filter_by(name=camera_name).first()
@@ -272,7 +302,7 @@ def get_camera(camera_name):
     
     known_face_encodings = []
     known_face_names = []
-    if face_recognition_filter:
+    if "face_recognition" in activated_filters:
         try:
             employees = db.query(Employee).all()
             known_face_encodings = [np.load(io.BytesIO(employee.encodedFace)) for employee in employees if hasattr(employee, 'encodedFace') and employee.encodedFace]
@@ -291,11 +321,7 @@ def get_camera(camera_name):
             "frame": None,
             "clients": 0,
             "running": False,
-            "filters": {
-                "face_recognition": face_recognition_filter,
-                "person_detection": person_detection_filter,
-                "ppe_recognition": ppe_recognition_filter
-            },
+            "filters": activated_filters,
             "thread": None,
             "cap": None
         }
@@ -308,11 +334,7 @@ def get_camera(camera_name):
     
         # Check if the camera is already running and if it has any filters activated
         # if the camera is running and filters have changed
-        if active_cameras[camera_name]["running"] and (
-            active_cameras[camera_name]["filters"]["face_recognition"] != face_recognition_filter or
-            active_cameras[camera_name]["filters"]["person_detection"] != person_detection_filter or
-            active_cameras[camera_name]["filters"]["ppe_recognition"] != ppe_recognition_filter
-        ):
+        if active_cameras[camera_name]["running"] and active_cameras[camera_name]["filters"] != activated_filters:
             print(f"Restarting camera stream for {camera_name} due to filter change")
             
             if active_cameras[camera_name]["cap"]:
@@ -327,16 +349,12 @@ def get_camera(camera_name):
                 old_thread.join(timeout=1)
                 print("Old stream thread finished")
 
-        active_cameras[camera_name]["filters"] = {
-            "face_recognition": face_recognition_filter,
-            "person_detection": person_detection_filter,
-            "ppe_recognition": ppe_recognition_filter
-        }
-        
+        active_cameras[camera_name]["filters"] = activated_filters
+
         if not active_cameras[camera_name]["running"]:
             active_cameras[camera_name]["running"] = True
             process_thread = Thread(target=process_camera_frames,
-                                    args=(camera_name, rtsp_url, face_recognition_filter, person_detection_filter, ppe_recognition_filter,
+                                    args=(camera_name, rtsp_url, activated_filters,
                                           known_face_encodings, known_face_names))
             process_thread.daemon = True
             active_cameras[camera_name]["thread"] = process_thread
