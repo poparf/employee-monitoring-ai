@@ -3,7 +3,6 @@ from flaskr.db import get_tenant_db, get_users_db
 from flaskr.middlewares.PermissionMiddleware import permission_required
 from flaskr.entities.VideoCamera import VideoCamera
 from flaskr.entities.auth_db.User import User
-import re
 from flaskr.entities.Employee import Employee
 import jwt
 import cv2 as cv
@@ -112,22 +111,21 @@ def process_camera_frames(camera_name, rtsp_url,
     print(f"Starting stream processing for {camera_name}")
     cuda_available = dlib.DLIB_USE_CUDA
     print(f"CUDA available: {cuda_available}")
-
+    
+    
     # --- Load the YOLO model ---
-    # Ensure this path is correct relative to the execution context
-    # Or use an absolute path
-    model_path = "flaskr/ML/PPE_model/my_model.pt"
-    try:
-        model = YOLO(model_path, task='detect')
-        print(f"YOLO model loaded successfully from {model_path}")
-        yolo_labels = model.names
-        print("YOLO labels:", yolo_labels)
-    except Exception as e:
-        print(f"Error loading YOLO model: {e}")
-        model = None
+    model = None
+    yolo_active_filters = [f for f in filters if f != "face_recognition"]
+    if len(yolo_active_filters) != 0:
+        model_path = "flaskr/ML/PPE_model/my_model.pt"
+        try:
+            model = YOLO(model_path, task='detect')
+            print(f"YOLO model loaded successfully from {model_path}")
+            yolo_labels = model.names
+            print("YOLO labels:", yolo_labels)
+        except Exception as e:
+            print(f"Error loading YOLO model: {e}")
     # -------------------------
-
-
 
     cap = cv.VideoCapture(rtsp_url)
     #cap = cv.VideoCapture(0)
@@ -189,10 +187,15 @@ def process_camera_frames(camera_name, rtsp_url,
                 print(f"Error in face recognition: {e}")
             
             # activate YOLO for every filter that is present in filters except face_recognition
-            yolo_active_filters = [f for f in filters if f != "face_recognition"]
-            if model is not None and yolo_active_filters:
+            if model is not None:
                 try:
-                    results = model.predict(frame, conf=0.5, iou=0.5, classes=yolo_active_filters)
+                    # Yolo active filters are strings, we need to convert into indices
+                    class_indices = []
+                    for idx, name in yolo_labels.items():
+                        if name in yolo_active_filters:
+                            class_indices.append(idx)
+
+                    results = model.predict(frame, conf=0.5, iou=0.5, classes=class_indices)
                     for result in results:
                         boxes = result.boxes
                         for box in boxes:
@@ -219,7 +222,6 @@ def process_camera_frames(camera_name, rtsp_url,
         
     cap.release()
     print(f"Camera stream for {camera_name} has stopped")
-    
 
 @bp.route("/", methods=["GET"])
 @permission_required("READ_VIDEO_CAMERA")
@@ -241,7 +243,10 @@ def get_cameras_list(current_user):
             "password": camera.password,
             "name": camera.name,
             "location": camera.location,
-            "status": status
+            "status": status,
+              "filters": active_cameras[camera.name]["filters"] if camera.name in active_cameras else {
+            "face_recognition": False,
+            }
         }
         cameras_list.append(camera_info)
 
@@ -271,8 +276,6 @@ def get_camera_by_id(current_user, camera_id):
         "status": status,
         "filters": active_cameras[camera.name]["filters"] if camera.name in active_cameras else {
             "face_recognition": False,
-            "person_detection": False,
-            "ppe_recognition": False
         }
     }
     return {"camera": camera_info}, 200
@@ -391,6 +394,33 @@ def get_camera(camera_name):
         'Access-Control-Allow-Credentials': 'true'
     })
 
+@bp.route("/<int:camera_id>", methods=["DELETE"])
+@permission_required("CREATE_VIDEO_CAMERA") #TODO: Add new permission
+def delete_camera(current_user, camera_id):
+    try:
+        db = get_tenant_db()
+        if not camera_id:
+            return {"message": "No camera ID provided"}, 400
+        
+        camera = db.query(VideoCamera).filter_by(id=camera_id).first()
+        if not camera:
+            return {"message": "Camera not found"}, 404
+        
+        if camera.name in active_cameras:
+            with camera_locks[camera.name]:
+                active_cameras[camera.name]["running"] = False
+                if active_cameras[camera.name]["cap"]:
+                    active_cameras[camera.name]["cap"].release()
+                active_cameras.pop(camera.name, None)
+            camera_locks.pop(camera.name, None)
+
+        db.delete(camera)
+        db.commit()
+        return {"message": "Camera deleted successfully"}, 200
+        
+    except Exception as e:
+        app.logger.error(e)
+        return {"message": "Internal server error"}, 500
 
 @bp.route('/<camera_name>/stream', methods=['OPTIONS'])
 @permission_required("READ_VIDEO_STREAM")

@@ -43,7 +43,7 @@ def create_app(test_config=None):
         
     #     init_auth_db(app)
 
-    # Add a before_request function to handle OPTIONS requests
+    # # Add a before_request function to handle OPTIONS requests
     @app.before_request
     def handle_preflight():
         from flask import request
