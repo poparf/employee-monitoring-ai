@@ -77,7 +77,6 @@ const EmployeesList = () => {
         </div>
     );
 
-    // Delete confirmation modal
     const DeleteModal = () => (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-neutral-800 rounded-lg p-6 max-w-md w-full mx-4">
@@ -94,13 +93,13 @@ const EmployeesList = () => {
                 <div className="flex justify-end space-x-3">
                     <button 
                         onClick={handleDeleteCancel} 
-                        className="px-4 py-2 border border-neutral-600 rounded-md hover:bg-neutral-700"
+                        className="cursor-pointer px-4 py-2 border border-neutral-600 rounded-md hover:bg-neutral-700"
                     >
                         Cancel
                     </button>
                     <button 
                         onClick={handleDeleteConfirm} 
-                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                        className="cursor-pointer px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
                     >
                         Delete
                     </button>
@@ -210,8 +209,7 @@ const EmployeesList = () => {
                     </div>
                 )}
 
-                {/* Delete Confirmation Modal */}
-                {showDeleteModal && <DeleteModal />}
+                {showDeleteModal && <DeleteModal/>}
             </main>
         </div>
     );

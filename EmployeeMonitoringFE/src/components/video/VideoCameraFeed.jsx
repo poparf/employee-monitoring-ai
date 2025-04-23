@@ -23,7 +23,7 @@ const VideoCameraFeed = ({ camera, detailed = true, onClickHandler, streamKey })
       setIsStreamLoading(true);
       setStreamError(false);
       // Create a fresh URL with timestamp to prevent caching
-      const url = `${SERVER_URL}/video-cameras/${camera.name}/stream?token=${token}&t=${streamKey || Date.now()}`;
+      const url = `${SERVER_URL}/video-cameras/${camera.name}/stream?token=${token}`;
       setStreamUrl(url);
     }
   }, [camera, token, streamKey]);
@@ -42,8 +42,7 @@ const VideoCameraFeed = ({ camera, detailed = true, onClickHandler, streamKey })
     e.stopPropagation(); // Prevent triggering the parent's onClick
     setIsStreamLoading(true);
     setStreamError(false);
-    // Create a fresh URL with new timestamp
-    const newUrl = `${SERVER_URL}/video-cameras/${camera.name}/stream?token=${token}&t=${Date.now()}`;
+    const newUrl = `${SERVER_URL}/video-cameras/${camera.name}/stream?token=${token}`;
     setStreamUrl(newUrl);
   };
   

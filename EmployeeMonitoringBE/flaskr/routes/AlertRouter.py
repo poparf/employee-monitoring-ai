@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app as app
 from flaskr.entities.Alert import Alert, AlertType, AlertLevel, AlertStatus
 from flaskr.db import get_tenant_db
 from flaskr.middlewares.PermissionMiddleware import permission_required
@@ -82,7 +82,9 @@ def get_alerts(current_user):
 
     except SQLAlchemyError as e:
         # Log the error e
+        app.logger.error(f"Database error in retrieving alerts: {str(e)}")
         return jsonify({"error": "Database error occurred"}), 500
     except Exception as e:
         # Log the error e
+        app.logger.error(f"Unexpected error in retrieving alerts: {str(e)}")
         return jsonify({"error": "An unexpected error occurred"}), 500

@@ -137,7 +137,7 @@ export const updateSecurity = (securityId, securityData) => {
 };
 
 export const deleteSecurity = (securityId) => {
-    return apiClient.delete(`/security/${securityId}`);
+    return apiClient.delete(`/users/security/${securityId}`);
 };
 
 // Zone Management

@@ -3,8 +3,7 @@ import { Link } from 'react-router';
 import Sidebar from "../../components/layout/Sidebar";
 import { useUser } from '../../context/UserContext';
 import { FiPlus, FiShield, FiEdit, FiTrash, FiX } from 'react-icons/fi';
-import AuthenticatedImage from '../../components/AuthenticatedImage';
-import { getAllSecurity } from '../../services/MainService';
+import { getAllSecurity, deleteSecurity } from '../../services/MainService';
 
 
 const SecurityList = () => {
@@ -48,10 +47,10 @@ const SecurityList = () => {
         if (!personToDelete) return;
         
         try {
-            // TODO:This would call a real API in your application
-            // await deleteSecurityPerson(personToDelete.id);
-            
-            // Update the local state to remove the deleted person
+            const res = await deleteSecurity(personToDelete.id);
+            if(res.status !== 200) {
+                throw new Error("Failed to delete security personnel");
+            }
             setPersonnel(personnel.filter(p => p.id !== personToDelete.id));
             setShowDeleteModal(false);
             setPersonToDelete(null);
@@ -79,7 +78,6 @@ const SecurityList = () => {
         </div>
     );
 
-    // Delete confirmation modal
     const DeleteModal = () => (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-neutral-800 rounded-lg p-6 max-w-md w-full mx-4">
@@ -96,13 +94,13 @@ const SecurityList = () => {
                 <div className="flex justify-end space-x-3">
                     <button 
                         onClick={handleDeleteCancel} 
-                        className="px-4 py-2 border border-neutral-600 rounded-md hover:bg-neutral-700"
+                        className="cursor-pointer px-4 py-2 border border-neutral-600 rounded-md hover:bg-neutral-700"
                     >
                         Cancel
                     </button>
                     <button 
                         onClick={handleDeleteConfirm} 
-                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                        className="cursor-pointer px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
                     >
                         Delete
                     </button>
@@ -172,13 +170,7 @@ const SecurityList = () => {
                                             <td className="px-4 py-3">{person.phoneNumber}</td>
                                             <td className='px-4 py-3'>TODO</td>
                                             <td className="px-4 py-3">
-                                                <div className="flex space-x-2">
-                                                    <Link 
-                                                        to={`/security/${person.id}/edit`}
-                                                        className="text-neutral-400 hover:text-white p-1"
-                                                    >
-                                                        <FiEdit size={18} />
-                                                    </Link>
+                                                <div className="flex justify-start">
                                                     <button
                                                         onClick={() => handleDeleteClick(person)}
                                                         className="text-neutral-400 hover:text-red-500 p-1"

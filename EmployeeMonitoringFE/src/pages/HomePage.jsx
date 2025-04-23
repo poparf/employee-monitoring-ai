@@ -58,7 +58,7 @@ const HomePage = () => {
 
                 if(isAdmin()) {
                     const employeesResponse = await getAllEmployees();
-                    setEmployeeCount(employeesResponse.data.employees?.length || 0);
+                    setEmployeeCount(employeesResponse.data.length || 0);
                     const securityResponse = await getAllSecurity();
                     setSecurityCount(securityResponse.data.length || 0);
                 }

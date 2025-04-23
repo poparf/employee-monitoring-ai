@@ -159,6 +159,13 @@ Entity PPE
 
 The videostream is processed only when clients ( from frontend ) are connected to the stream
 Normally, the stream should be processed at all time
+If you go to a video camera then you move around screens the stream is processed continously
+
+fact2
+rtsp urls are different for different cameras
+so the actual /stream2 after url works only for tapo
+
+
 
 ## Questions
 
@@ -173,3 +180,7 @@ https://www.tp-link.com/us/support/faq/2680/
 at commit id: c0da60490a58ea256c3e6dabde9541d608faab65
 
 1420 lines - 11/3/2025
+
+
+2132.py 3864.jsx lines of code 24/04/2025
+total = 5996

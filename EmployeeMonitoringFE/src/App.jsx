@@ -52,6 +52,7 @@ export const App = () => {
       <Routes>
         <Route path="*" element={<NotFoundPage isAuthenticated={isAuthenticated()}/>}/>
         <Route path="/about" element={<AboutPage />} />
+        <Route path="/security/register" element={<SecurityRegistration />} />
 
         <Route element={<AlreadyAuthenticated isAuthenticated={isAuthenticated()} />}>
           <Route path="/login" element={<LoginPage />} />
@@ -65,7 +66,6 @@ export const App = () => {
             <Route path="/employees/:employeeId/edit" element={<EmployeeEdit />} />
             <Route path="/employees" element={<EmployeesList/>} />
 
-            <Route path="/security/register" element={<SecurityRegistration />} />
             <Route path="/security" element={<SecurityList />} />
             <Route path="/security/invitation" element={<SecurityInvitation />} />
             <Route path="/security/:securityId/edit" element={<SecurityEdit />} />

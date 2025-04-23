@@ -1,9 +1,10 @@
-from flask import current_app as app, Blueprint, request, Response, g
+from flask import current_app, Blueprint, request, Response, g
 from flaskr.db import get_tenant_db, get_users_db
 from flaskr.middlewares.PermissionMiddleware import permission_required
 from flaskr.entities.VideoCamera import VideoCamera
 from flaskr.entities.auth_db.User import User
 from flaskr.entities.Employee import Employee
+from flaskr.entities.Alert import Alert, AlertType, AlertLevel, AlertStatus
 import jwt
 import cv2 as cv
 import numpy as np
@@ -18,7 +19,63 @@ bp = Blueprint("video-cameras", __name__, url_prefix="/video-cameras")
 
 active_cameras = {}  # camera_name: {"frame": bytes, "clients": count, "running": bool, "filters": [], thread: Thread}
 camera_locks = {}    # camera_name: Lock
+# Object which holds the latest "objects" detected in the last 60 seconds
+# it wil work as a buffer zone which will allow alerts to not flow continously
+# camera name => object name => timestamp of the last detection
+# camera name => object name (face_recognition) =>  {timestamp: timestamp, name: name}
+detected_objects = {}
+# object is cleared every 30 seconds
+def clear_detected_objects():
+    for camera_name in detected_objects:
+        for object_name in detected_objects[camera_name]:
+            if detected_objects[camera_name][object_name]["timestamp"] < time.time() - 60:
+                detected_objects[camera_name].pop(object_name, None)
 
+def raise_person_detected_alert(camera_name, name, frame, app_instance, tenant_id):
+    with app_instance.app_context():
+        g.tenant_id = tenant_id
+        if camera_name not in detected_objects:
+            detected_objects[camera_name] = {}
+            if "face_recognition" not in detected_objects[camera_name]:
+                detected_objects[camera_name]["face_recognition"] = {}
+            if name not in detected_objects[camera_name]["face_recognition"]:
+                detected_objects[camera_name]["face_recognition"][name] = {
+                    "timestamp": time.time(),
+                    "name": name
+                }
+                # Raise alert
+                employee_id = None
+                
+                if name != "Unknown":
+                    level = AlertLevel.LOW
+                    # get employee id
+                    db = get_tenant_db()
+                    name_splitted = name.split(" ")
+                    firstName = name_splitted[0]
+                    lastName = name_splitted[1]
+                    
+                    employee = db.query(Employee).filter_by(firstName=firstName, lastName=lastName).first()
+                    if employee:
+                        employee_id = employee.id
+                else:
+                    level = AlertLevel.HIGH
+                print(employee_id)
+                # Save matLike frame as jpeg
+                success, jpeg_frame = cv.imencode('.jpg', frame)
+                screenshot_path = None
+                if not success:
+                    print(f"Failed to encode frame for camera: {camera_name}")
+                else:
+                    screenshot_path = f"{current_app.config['ALERTS_SCREENSHOTS_PATH']}\\{camera_name}_{int(time.time())}.jpg"
+                    with open(screenshot_path, "wb") as f:
+                        f.write(jpeg_frame.tobytes())
+                #ALERTS_SCREENSHOTS_PATH
+                alert = Alert(type=AlertType.FACE_DETECTED, level=level, \
+                    screenshot=screenshot_path, status=AlertStatus.ACTIVE,\
+                        explanation=f"Face detected: {name}", employee_id=employee_id, zone_id=None)
+                db.add(alert)
+                db.commit()
+                
 
 # def is_valid_ip(ip):
 #     pattern = re.compile(
@@ -31,7 +88,7 @@ def is_valid_port(port):
 
 def validate_token(token):
         try:
-            data = jwt.decode(token, app.config["JWT_SECRET"], algorithms=["HS256"])
+            data = jwt.decode(token, current_app.config["JWT_SECRET"], algorithms=["HS256"])
             db = get_users_db()
             logged_user = db.query(User).filter_by(id=data["user_id"]).first()
             print(logged_user)
@@ -50,8 +107,6 @@ def validate_token(token):
         g.tenant_id = logged_user.tenant_id
         return logged_user, 200
         
-
-
 @bp.route("/", methods=["POST"])
 @permission_required("CREATE_VIDEO_CAMERA")
 def create_video_camera(current_user):
@@ -106,122 +161,149 @@ def create_video_camera(current_user):
 
 def process_camera_frames(camera_name, rtsp_url,
                           filters,
-                            known_face_encodings=[],
-                            known_face_names=[]):
-    print(f"Starting stream processing for {camera_name}")
-    cuda_available = dlib.DLIB_USE_CUDA
-    print(f"CUDA available: {cuda_available}")
-    
-    
-    # --- Load the YOLO model ---
-    model = None
-    yolo_active_filters = [f for f in filters if f != "face_recognition"]
-    if len(yolo_active_filters) != 0:
-        model_path = "flaskr/ML/PPE_model/my_model.pt"
-        try:
-            model = YOLO(model_path, task='detect')
-            print(f"YOLO model loaded successfully from {model_path}")
-            yolo_labels = model.names
-            print("YOLO labels:", yolo_labels)
-        except Exception as e:
-            print(f"Error loading YOLO model: {e}")
-    # -------------------------
-
-    cap = cv.VideoCapture(rtsp_url)
-    #cap = cv.VideoCapture(0)
-    # Reduced buffer size: solution 1
-    cap.set(cv.CAP_PROP_BUFFERSIZE, 2)
-    active_cameras[camera_name]["cap"] = cap
-    if not cap.isOpened():
-        print(f"Could not open stream for camera: {camera_name}")
-        with camera_locks[camera_name]:
-            active_cameras[camera_name]["running"] = False
-        return
-    
-    #process_this_frame = True
-
-
-    while active_cameras[camera_name]["running"]:
-        with camera_locks[camera_name]:
-            if active_cameras[camera_name]["clients"] <= 0:
-                active_cameras[camera_name]["running"] = False
-                print(f"No more clients for camera {camera_name}, stopping stream")
-                break
+                            known_face_encodings,
+                            known_face_names,
+                            app_instance,
+                            tenant_id):
+    with app_instance.app_context():
+        g.tenant_id = tenant_id
+        print(f"Starting stream processing for {camera_name}")
+        cuda_available = dlib.DLIB_USE_CUDA
+        print(f"CUDA available: {cuda_available}")
+        # Clear every 30 seconds detected objects
+        Thread(target=clear_detected_objects, args=()).start()
         
-        success, frame = cap.read()
-        if not success:
-            break
-
-        #if process_this_frame:
-        try:
-            if "face_recognition" in filters and known_face_encodings:
-                print("detecting faces")
-                small_frame = cv.resize(frame, (0, 0), fx=0.25, fy=0.25)
-                rgb_small_frame = np.ascontiguousarray(small_frame[:, :, ::-1])
-                face_locations = face_recognition.face_locations(rgb_small_frame, model="cnn")
-                face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
-                
-                face_names = []
-                for face_encoding in face_encodings:
-                    matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
-                    name = "Unknown"
-                    
-                    if len(known_face_encodings) > 0:
-                        face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
-                        best_match_index = np.argmin(face_distances)
-                        if matches[best_match_index]:
-                            name = known_face_names[best_match_index]
-                    face_names.append(name)
-                    print("Face names: ", face_names)
-                
-                for (top, right, bottom, left), name in zip(face_locations, face_names):
-                    top *= 4
-                    right *= 4
-                    bottom *= 4
-                    left *= 4
-                    cv.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
-                    cv.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv.FILLED)
-                    font = cv.FONT_HERSHEY_DUPLEX
-                    cv.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
-        except Exception as e:
-            print(f"Error in face recognition: {e}")
-        
-        # activate YOLO for every filter that is present in filters except face_recognition
-        if model is not None:
+        # --- Load the YOLO model ---
+        model = None
+        yolo_active_filters = [f for f in filters if f != "face_recognition"]
+        if len(yolo_active_filters) != 0:
+            model_path = "flaskr/ML/PPE_model/my_model.pt"
             try:
-                # Yolo active filters are strings, we need to convert into indices
-                class_indices = []
-                for idx, name in yolo_labels.items():
-                    if name in yolo_active_filters:
-                        class_indices.append(idx)
-
-                results = model.predict(frame, conf=0.5, iou=0.5, classes=class_indices)
-                for result in results:
-                    boxes = result.boxes
-                    for box in boxes:
-                        x1, y1, x2, y2 = map(int, box.xyxy[0])
-                        conf = box.conf[0]
-                        cls = int(box.cls[0])
-                        label = f"{yolo_labels[cls]} {conf:.2f}"
-                        cv.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                        cv.putText(frame, label, (x1, y1 - 10), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                model = YOLO(model_path, task='detect')
+                print(f"YOLO model loaded successfully from {model_path}")
+                yolo_labels = model.names
+                print("YOLO labels:", yolo_labels)
             except Exception as e:
-                print(f"Error in YOLO detection: {e}")
-        #process_this_frame = not process_this_frame
+                print(f"Error loading YOLO model: {e}")
+        # -------------------------
 
-        success, jpeg_frame = cv.imencode('.jpg', frame)
-        if not success:
-            print(f"Failed to encode frame for camera: {camera_name}")
-            continue
-
-        frame_bytes = jpeg_frame.tobytes()
-        with camera_locks[camera_name]:
-            active_cameras[camera_name]["frame"] = frame_bytes
-
-        cv.waitKey(1)
+        cap = cv.VideoCapture(rtsp_url)
+        #cap = cv.VideoCapture(0)
+        # Reduced buffer size: solution 1
+        cap.set(cv.CAP_PROP_BUFFERSIZE, 2)
+        active_cameras[camera_name]["cap"] = cap
+        if not cap.isOpened():
+            print(f"Could not open stream for camera: {camera_name}")
+            with camera_locks[camera_name]:
+                active_cameras[camera_name]["running"] = False
+            return
         
-    cap.release()
-    print(f"Camera stream for {camera_name} has stopped")
+        #process_this_frame = True
+
+
+        while active_cameras[camera_name]["running"]:
+            with camera_locks[camera_name]:
+                if active_cameras[camera_name]["clients"] <= 0:
+                    active_cameras[camera_name]["running"] = False
+                    print(f"No more clients for camera {camera_name}, stopping stream")
+                    break
+            
+            success, frame = cap.read()
+            if not success:
+                break
+
+            #if process_this_frame:
+            try:
+                if "face_recognition" in filters and known_face_encodings:
+                    small_frame = cv.resize(frame, (0, 0), fx=0.25, fy=0.25)
+                    rgb_small_frame = np.ascontiguousarray(small_frame[:, :, ::-1])
+                    face_locations = face_recognition.face_locations(rgb_small_frame, model="cnn")
+                    face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+                    
+                    face_names = []
+                    for face_encoding in face_encodings:
+                        matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
+                        name = "Unknown"
+                        
+                        if len(known_face_encodings) > 0:
+                            face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
+                            best_match_index = np.argmin(face_distances)
+                            if matches[best_match_index]:
+                                name = known_face_names[best_match_index]
+                        face_names.append(name)
+                        Thread(target=raise_person_detected_alert, args=(camera_name, name, frame, app_instance, tenant_id)).start()
+                    
+                    for (top, right, bottom, left), name in zip(face_locations, face_names):
+                        top *= 4
+                        right *= 4
+                        bottom *= 4
+                        left *= 4
+                        cv.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
+                        cv.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv.FILLED)
+                        font = cv.FONT_HERSHEY_DUPLEX
+                        cv.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
+            except Exception as e:
+                print(f"Error in face recognition: {e}")
+            # TODO: Let users customize the cooldown per object type.
+            # activate YOLO for every filter that is present in filters except face_recognition
+            if model is not None:
+                try:
+                    # Yolo active filters are strings, we need to convert into indices
+                    class_indices = []
+                    for idx, name in yolo_labels.items():
+                        if name in yolo_active_filters:
+                            class_indices.append(idx)
+
+                    #results = model.predict(frame, conf=0.5, iou=0.5, classes=class_indices)
+                    results = model.track(frame, conf=0.5, iou=0.5, classes=class_indices, persist=True,\
+                        tracker="bytetrack.yaml")
+                    
+                    for result in results:
+                        boxes = result.boxes
+                        for box in boxes:
+                            box_id = str(box.id.item())
+                            x1, y1, x2, y2 = map(int, box.xyxy[0])
+                            conf = box.conf[0]
+                            cls = int(box.cls[0])
+                            label = f"{yolo_labels[cls]} {conf:.2f}"
+                            cv.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                            cv.putText(frame, "#" + box_id + " " + label, (x1, y1 - 10), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+                            # #if we would use box id
+                            # if camera_name not in detected_objects:
+                            #     detected_objects[camera_name] = {}
+                            #     if box_id not in detected_objects[camera_name]:
+                            #         detected_objects[camera_name][box_id] = {
+                            #             "timestamp": time.time(),
+                            #             "name": yolo_labels[cls]
+                            #         }
+                            # Based on time:
+                            if camera_name not in detected_objects:
+                                detected_objects[camera_name] = {}
+                                if yolo_labels[cls] not in detected_objects[camera_name]:
+                                    detected_objects[camera_name][yolo_labels[cls]] = {
+                                        "timestamp": time.time(),
+                                        "name": yolo_labels[cls]
+                                    }
+                                    # raise alert
+                                    
+                                    
+                except Exception as e:
+                    print(f"Error in YOLO detection: {e}")
+            #process_this_frame = not process_this_frame
+
+            success, jpeg_frame = cv.imencode('.jpg', frame)
+            if not success:
+                print(f"Failed to encode frame for camera: {camera_name}")
+                continue
+
+            frame_bytes = jpeg_frame.tobytes()
+            with camera_locks[camera_name]:
+                active_cameras[camera_name]["frame"] = frame_bytes
+
+            cv.waitKey(1)
+            
+        cap.release()
+        print(f"Camera stream for {camera_name} has stopped")
 
 @bp.route("/", methods=["GET"])
 @permission_required("READ_VIDEO_CAMERA")
@@ -356,9 +438,12 @@ def get_camera(camera_name):
 
         if not active_cameras[camera_name]["running"]:
             active_cameras[camera_name]["running"] = True
+            app_instance = current_app._get_current_object()
+            tenant_id_from_request = g.tenant_id
             process_thread = Thread(target=process_camera_frames,
                                     args=(camera_name, rtsp_url, activated_filters,
-                                          known_face_encodings, known_face_names))
+                                          known_face_encodings, known_face_names,
+                                          app_instance, tenant_id_from_request))
             process_thread.daemon = True
             active_cameras[camera_name]["thread"] = process_thread
             process_thread.start()
@@ -419,13 +504,13 @@ def delete_camera(current_user, camera_id):
         return {"message": "Camera deleted successfully"}, 200
         
     except Exception as e:
-        app.logger.error(e)
+        current_app.logger.error(e)
         return {"message": "Internal server error"}, 500
 
 @bp.route('/<camera_name>/stream', methods=['OPTIONS'])
 @permission_required("READ_VIDEO_STREAM")
 def handle_options(current_user, camera_name):
-    response = app.make_default_options_response()
+    response = current_app.make_default_options_response()
     response.headers.add('Access-Control-Allow-Headers', 'Authorization, Content-Type')
     response.headers.add('Access-Control-Allow-Credentials', 'true')
     return response

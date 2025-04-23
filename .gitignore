@@ -1,5 +1,7 @@
 EmployeeMonitoringBE/emvenv/
 EmployeeMonitoringBE/emvenv/*
+EmployeeMonitoringBE/venv/*
+EmployeeMonitoringBE/venv/
 
 EmployeeMonitoringBE/*.pyc
 EmployeeMonitoringBE/__pycache__/

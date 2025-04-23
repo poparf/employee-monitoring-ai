@@ -29,13 +29,27 @@ class Alert(Entity):
     level: Mapped[AlertLevel] = mapped_column()
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now)
 
-    screenshot: Mapped[str] = mapped_column()
+    screenshot: Mapped[str] = mapped_column(nullable=True)
     status: Mapped[AlertStatus] = mapped_column()
     explanation: Mapped[str] = mapped_column()
-    resolved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"))
-    zone_id: Mapped[int] = mapped_column(ForeignKey("zones.id"))
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), nullable=True)
+    zone_id: Mapped[int] = mapped_column(ForeignKey("zones.id"), nullable=True)
 
     def to_dict(self):
-         return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+        """Converts the Alert object to a JSON-serializable dictionary."""
+        result = {}
+        for column in self.__table__.columns:
+            value = getattr(self, column.name)
+            if isinstance(value, Enum):
+                # Convert Enum members to their string values
+                result[column.name] = value.value
+            elif isinstance(value, datetime):
+                # Convert datetime objects to ISO 8601 string format
+                # Handle potential None values for nullable datetime fields like resolved_at
+                result[column.name] = value.isoformat() if value else None
+            else:
+                # Keep other types as they are (assuming they are serializable)
+                result[column.name] = value
+        return result
