@@ -138,7 +138,7 @@ def process_camera_frames(camera_name, rtsp_url,
             active_cameras[camera_name]["running"] = False
         return
     
-    process_this_frame = True
+    #process_this_frame = True
 
 
     while active_cameras[camera_name]["running"]:
@@ -152,62 +152,62 @@ def process_camera_frames(camera_name, rtsp_url,
         if not success:
             break
 
-        if process_this_frame:
+        #if process_this_frame:
+        try:
+            if "face_recognition" in filters and known_face_encodings:
+                print("detecting faces")
+                small_frame = cv.resize(frame, (0, 0), fx=0.25, fy=0.25)
+                rgb_small_frame = np.ascontiguousarray(small_frame[:, :, ::-1])
+                face_locations = face_recognition.face_locations(rgb_small_frame, model="cnn")
+                face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+                
+                face_names = []
+                for face_encoding in face_encodings:
+                    matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
+                    name = "Unknown"
+                    
+                    if len(known_face_encodings) > 0:
+                        face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
+                        best_match_index = np.argmin(face_distances)
+                        if matches[best_match_index]:
+                            name = known_face_names[best_match_index]
+                    face_names.append(name)
+                    print("Face names: ", face_names)
+                
+                for (top, right, bottom, left), name in zip(face_locations, face_names):
+                    top *= 4
+                    right *= 4
+                    bottom *= 4
+                    left *= 4
+                    cv.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
+                    cv.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv.FILLED)
+                    font = cv.FONT_HERSHEY_DUPLEX
+                    cv.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
+        except Exception as e:
+            print(f"Error in face recognition: {e}")
+        
+        # activate YOLO for every filter that is present in filters except face_recognition
+        if model is not None:
             try:
-                if "face_recognition" in filters and known_face_encodings:
-                    print("detecting faces")
-                    small_frame = cv.resize(frame, (0, 0), fx=0.25, fy=0.25)
-                    rgb_small_frame = np.ascontiguousarray(small_frame[:, :, ::-1])
-                    face_locations = face_recognition.face_locations(rgb_small_frame, model="cnn")
-                    face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
-                    
-                    face_names = []
-                    for face_encoding in face_encodings:
-                        matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
-                        name = "Unknown"
-                        
-                        if len(known_face_encodings) > 0:
-                            face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
-                            best_match_index = np.argmin(face_distances)
-                            if matches[best_match_index]:
-                                name = known_face_names[best_match_index]
-                        face_names.append(name)
-                        print("Face names: ", face_names)
-                    
-                    for (top, right, bottom, left), name in zip(face_locations, face_names):
-                        top *= 4
-                        right *= 4
-                        bottom *= 4
-                        left *= 4
-                        cv.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
-                        cv.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv.FILLED)
-                        font = cv.FONT_HERSHEY_DUPLEX
-                        cv.putText(frame, name, (left + 6, bottom - 6), font, 1.0, (255, 255, 255), 1)
-            except Exception as e:
-                print(f"Error in face recognition: {e}")
-            
-            # activate YOLO for every filter that is present in filters except face_recognition
-            if model is not None:
-                try:
-                    # Yolo active filters are strings, we need to convert into indices
-                    class_indices = []
-                    for idx, name in yolo_labels.items():
-                        if name in yolo_active_filters:
-                            class_indices.append(idx)
+                # Yolo active filters are strings, we need to convert into indices
+                class_indices = []
+                for idx, name in yolo_labels.items():
+                    if name in yolo_active_filters:
+                        class_indices.append(idx)
 
-                    results = model.predict(frame, conf=0.5, iou=0.5, classes=class_indices)
-                    for result in results:
-                        boxes = result.boxes
-                        for box in boxes:
-                            x1, y1, x2, y2 = map(int, box.xyxy[0])
-                            conf = box.conf[0]
-                            cls = int(box.cls[0])
-                            label = f"{yolo_labels[cls]} {conf:.2f}"
-                            cv.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                            cv.putText(frame, label, (x1, y1 - 10), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-                except Exception as e:
-                    print(f"Error in YOLO detection: {e}")
-        process_this_frame = not process_this_frame
+                results = model.predict(frame, conf=0.5, iou=0.5, classes=class_indices)
+                for result in results:
+                    boxes = result.boxes
+                    for box in boxes:
+                        x1, y1, x2, y2 = map(int, box.xyxy[0])
+                        conf = box.conf[0]
+                        cls = int(box.cls[0])
+                        label = f"{yolo_labels[cls]} {conf:.2f}"
+                        cv.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv.putText(frame, label, (x1, y1 - 10), cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+            except Exception as e:
+                print(f"Error in YOLO detection: {e}")
+        #process_this_frame = not process_this_frame
 
         success, jpeg_frame = cv.imencode('.jpg', frame)
         if not success:

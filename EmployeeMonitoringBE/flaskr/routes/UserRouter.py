@@ -135,6 +135,24 @@ def get_all_security_guards(current_user):
         app.logger.error(e)
         return jsonify({"message": "Something went wrong"}), 500
 
+@bp.route("/security/<string:user_id>", methods=["DELETE"])
+@role_required("ADMIN")
+def delete_security_guard(current_user, user_id):
+    try:
+        db = get_users_db()
+        print(user_id)
+        user = db.query(User).filter_by(id=user_id).first()
+        print(user)
+        if user == None:
+            return jsonify({"message": "User not found"}), 404
+        
+        db.delete(user)
+        db.commit()
+        return jsonify({"message": "User deleted"}), 200
+    except Exception as e:
+        app.logger.error(e)
+        return jsonify({"message": "Something went wrong"}), 500
+
 @bp.route("/security/<int:user_id>", methods=["GET"])
 @role_required("ADMIN")
 def get_security_guard(current_user, user_id):
@@ -151,23 +169,6 @@ def get_security_guard(current_user, user_id):
     except Exception as e:
         app.logger.error(e)
         return jsonify({"message": "Something went wrong"}), 500
-
-@bp.route("/security/<int:user_id>", methods=["DELETE"])
-@role_required("ADMIN")
-def delete_security_guard(current_user, user_id):
-    try:
-        db = get_users_db()
-        user = db.query(User).filter_by(id=user_id).first()
-        if user == None:
-            return jsonify({"message": "User not found"}), 404
-        db.delete(user)
-        db.commit()
-        return jsonify({"message": "User deleted"}), 200
-    except Exception as e:
-        app.logger.error(e)
-        return jsonify({"message": "Something went wrong"}), 500
-
-
 
 @bp.route("/security/register", methods=["POST"])
 def register_security_guard():
