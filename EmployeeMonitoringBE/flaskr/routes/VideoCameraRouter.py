@@ -41,47 +41,39 @@ def clear_detected_objects():
 def raise_person_detected_alert(camera_name, name, frame, app_instance, tenant_id):
     with app_instance.app_context():
         g.tenant_id = tenant_id
-        if camera_name not in detected_objects:
-            detected_objects[camera_name] = {}
-            if "face_recognition" not in detected_objects[camera_name]:
-                detected_objects[camera_name]["face_recognition"] = {}
-            if name not in detected_objects[camera_name]["face_recognition"]:
-                detected_objects[camera_name]["face_recognition"][name] = {
-                    "timestamp": time.time(),
-                    "name": name
-                }
-                # Raise alert
-                employee_id = None
-                
-                if name != "Unknown":
-                    level = AlertLevel.LOW
-                    # get employee id
-                    db = get_tenant_db()
-                    name_splitted = name.split(" ")
-                    firstName = name_splitted[0]
-                    lastName = name_splitted[1]
-                    
-                    employee = db.query(Employee).filter_by(firstName=firstName, lastName=lastName).first()
-                    if employee:
-                        employee_id = employee.id
-                else:
-                    level = AlertLevel.HIGH
-                print(employee_id)
-                # Save matLike frame as jpeg
-                success, jpeg_frame = cv.imencode('.jpg', frame)
-                screenshot_path = None
-                if not success:
-                    print(f"Failed to encode frame for camera: {camera_name}")
-                else:
-                    screenshot_path = f"{current_app.config['ALERTS_SCREENSHOTS_PATH']}\\{camera_name}_{int(time.time())}.jpg"
-                    with open(screenshot_path, "wb") as f:
-                        f.write(jpeg_frame.tobytes())
-                #ALERTS_SCREENSHOTS_PATH
-                alert = Alert(type=AlertType.FACE_DETECTED, level=level, \
-                    screenshot=screenshot_path, status=AlertStatus.ACTIVE,\
-                        explanation=f"Face detected: {name}", employee_id=employee_id, zone_id=None)
-                db.add(alert)
-                db.commit()
+        
+        # Raise alert
+        employee_id = None
+        
+        if name != "Unknown":
+            level = AlertLevel.LOW
+            # get employee id
+            db = get_tenant_db()
+            name_splitted = name.split(" ")
+            firstName = name_splitted[0]
+            lastName = name_splitted[1]
+            
+            employee = db.query(Employee).filter_by(firstName=firstName, lastName=lastName).first()
+            if employee:
+                employee_id = employee.id
+        else:
+            level = AlertLevel.HIGH
+        print(employee_id)
+        # Save matLike frame as jpeg
+        success, jpeg_frame = cv.imencode('.jpg', frame)
+        screenshot_path = None
+        if not success:
+            print(f"Failed to encode frame for camera: {camera_name}")
+        else:
+            screenshot_path = f"{current_app.config['ALERTS_SCREENSHOTS_PATH']}\\{camera_name}_{int(time.time())}.jpg"
+            with open(screenshot_path, "wb") as f:
+                f.write(jpeg_frame.tobytes())
+        #ALERTS_SCREENSHOTS_PATH
+        alert = Alert(type=AlertType.FACE_DETECTED, level=level, \
+            screenshot=screenshot_path, status=AlertStatus.ACTIVE,\
+                explanation=f"Face detected: {name}", employee_id=employee_id, zone_id=None)
+        db.add(alert)
+        db.commit()
                 
 
 # def is_valid_ip(ip):
@@ -238,7 +230,16 @@ def process_camera_frames(camera_name, rtsp_url,
                             if matches[best_match_index]:
                                 name = known_face_names[best_match_index]
                         face_names.append(name)
-                        Thread(target=raise_person_detected_alert, args=(camera_name, name, frame, app_instance, tenant_id)).start()
+                        if camera_name not in detected_objects:
+                            detected_objects[camera_name] = {}
+                            if "face_recognition" not in detected_objects[camera_name]:
+                                detected_objects[camera_name]["face_recognition"] = {}
+                            if name not in detected_objects[camera_name]["face_recognition"]:
+                                detected_objects[camera_name]["face_recognition"][name] = {
+                                    "timestamp": time.time(),
+                                    "name": name
+                                }
+                                Thread(target=raise_person_detected_alert, args=(camera_name, name, frame, app_instance, tenant_id)).start()
                     
                     for (top, right, bottom, left), name in zip(face_locations, face_names):
                         top *= 4

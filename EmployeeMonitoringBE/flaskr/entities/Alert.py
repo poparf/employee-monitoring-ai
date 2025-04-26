@@ -36,6 +36,8 @@ class Alert(Entity):
 
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), nullable=True)
     zone_id: Mapped[int] = mapped_column(ForeignKey("zones.id"), nullable=True)
+    camera_id: Mapped[int] = mapped_column(ForeignKey("video_cameras.id"), nullable=True)
+    alert_rule_id: Mapped[int] = mapped_column(ForeignKey("alert_rules.id"), nullable=True)
 
     def to_dict(self):
         """Converts the Alert object to a JSON-serializable dictionary."""
