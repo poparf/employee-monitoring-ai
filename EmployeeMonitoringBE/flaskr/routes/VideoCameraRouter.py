@@ -13,7 +13,7 @@ import io
 from threading import Thread, Lock
 import time
 import dlib
-from ultralytics import YOLO
+#from ultralytics import YOLO
 
 bp = Blueprint("video-cameras", __name__, url_prefix="/video-cameras")
 
@@ -24,6 +24,13 @@ camera_locks = {}    # camera_name: Lock
 # camera name => object name => timestamp of the last detection
 # camera name => object name (face_recognition) =>  {timestamp: timestamp, name: name}
 detected_objects = {}
+frame_detection_context = {
+    "timestamp": None,
+    "camera_name": None,
+    "detected_objects": [], # {"name": "Person", "count": 3, "locations": ["MAINCamera", "ZONE1"]},
+    "recognized_employees": [], # {"employee_id": 1, "name": "John Doe", "location": "MAINCamera"}
+    "dwell_times": [], # {"employee_id": 1, "name": "John Doe", "location": "MAINCamera", "dwell_time": 5}
+}
 # object is cleared every 30 seconds
 def clear_detected_objects():
     for camera_name in detected_objects:
