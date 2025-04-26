@@ -7,3 +7,6 @@ from flaskr.entities.Alert import Alert
 from flaskr.entities.Zone import Zone
 from flaskr.entities.Blacklist import Blacklist
 from flaskr.entities.PersonDetected import PersonDetected
+from flaskr.entities.alert_system.AlertRule import AlertRule
+from flaskr.entities.alert_system.RuleCameraLink import RuleCameraLink
+from flaskr.entities.alert_system.RuleZoneLink import RuleZoneLink

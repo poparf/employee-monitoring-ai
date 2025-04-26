@@ -17,6 +17,15 @@ def init_auth_db(app):
     security_guard_role = Role(name="SECURITY")
     db.add(security_guard_role)
 
+    manage_alerts_permission = Permission(name="MANAGE_ALERTS")
+    db.add(manage_alerts_permission)
+    read_alerts_permission = Permission(name="READ_ALERTS")
+    db.add(read_alerts_permission)
+    manage_alerts_rules_permission = Permission(name="MANAGE_ALERT_RULES")
+    db.add(manage_alerts_rules_permission)
+    read_alert_rule_permission = Permission(name="READ_ALERT_RULES")
+    db.add(read_alert_rule_permission)
+
     get_alerts_permission = Permission(name="GET_ALERTS")
     db.add(get_alerts_permission)
     create_blacklist_permission = Permission(name="CREATE_BLACKLIST")
@@ -48,6 +57,10 @@ def init_auth_db(app):
     db.add(delete_zone_permission)
 
     db.flush()
+    db.add(RolePermission(role_id=admin_role.id, permission_id=manage_alerts_permission.id))
+    db.add(RolePermission(role_id=admin_role.id, permission_id=read_alerts_permission.id))
+    db.add(RolePermission(role_id=admin_role.id, permission_id=manage_alerts_rules_permission.id))
+    db.add(RolePermission(role_id=admin_role.id, permission_id=read_alert_rule_permission.id))
     db.add(RolePermission(role_id=admin_role.id, permission_id=get_alerts_permission.id))
     db.add(RolePermission(role_id=admin_role.id, permission_id=create_blacklist_permission.id))
     db.add(RolePermission(role_id=admin_role.id, permission_id=delete_blacklist_permission.id))
@@ -60,6 +73,8 @@ def init_auth_db(app):
     db.add(RolePermission(role_id=admin_role.id, permission_id=create_video_camera_permission.id))
     db.add(RolePermission(role_id=admin_role.id, permission_id=read_video_camera_permission.id))
 
+    db.add(RolePermission(role_id=security_guard_role.id, permission_id=read_alert_rule_permission.id))
+    db.add(RolePermission(role_id=security_guard_role.id, permission_id=read_alerts_permission.id))
     db.add(RolePermission(role_id=security_guard_role.id, permission_id=get_alerts_permission.id))
     db.add(RolePermission(role_id=security_guard_role.id, permission_id=get_persons_detected.id))
     db.add(RolePermission(role_id=security_guard_role.id, permission_id=read_video_stream.id))
