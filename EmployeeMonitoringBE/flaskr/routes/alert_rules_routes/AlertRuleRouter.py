@@ -16,8 +16,8 @@ def create_alert_rule(current_user):
     Request Body:
         {
             "description": "string",
-            "is_active": true,
-            "priority": 1,
+            "is_active": true, // optional, default is false
+            "priority": 1, // 1 - low 2 - medium 3 - high
             "conditions_json": "{}",
             "action_details_json": "{}",
             "cooldown_seconds": 30,
@@ -31,7 +31,6 @@ def create_alert_rule(current_user):
     db = get_tenant_db()
 
     try:
-        # Create the alert rule
         alert_rule = AlertRule(
             description=data.get("description"),
             is_active=data.get("is_active", False),
@@ -41,14 +40,12 @@ def create_alert_rule(current_user):
             cooldown_seconds=data.get("cooldown_seconds", 30)
         )
 
-        # Add camera links
         for camera_link in data.get("camera_links", []):
             rule_camera_link = RuleCameraLink(
                 camera_id=camera_link["camera_id"]
             )
             alert_rule.camera_links.append(rule_camera_link)
 
-        # Add zone links
         for zone_link in data.get("zone_links", []):
             rule_zone_link = RuleZoneLink(
                 zone_id=zone_link["zone_id"]

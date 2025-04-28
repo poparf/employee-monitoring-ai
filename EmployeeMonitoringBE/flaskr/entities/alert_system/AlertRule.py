@@ -5,6 +5,12 @@ from typing import List
 from sqlalchemy import DateTime
 from flaskr.entities.alert_system.RuleCameraLink import RuleCameraLink
 from flaskr.entities.alert_system.RuleZoneLink import RuleZoneLink
+from enum import Enum
+
+class Priority(Enum):
+        LOW = "low"
+        MEDIUM = "medium"
+        HIGH = "high"
 
 class AlertRule(Entity):
     __tablename__ = "alert_rules"
@@ -12,8 +18,9 @@ class AlertRule(Entity):
     id: Mapped[int] = mapped_column(primary_key=True)
     description: Mapped[str] = mapped_column(nullable=True)
     is_active: Mapped[bool] = mapped_column(default=False)
-    priority: Mapped[int] = mapped_column()
-    
+    priority: Mapped[Priority] = mapped_column()
+
+
     conditions_json: Mapped[str] = mapped_column(nullable=False)
     action_details_json: Mapped[str] = mapped_column(nullable=False)
 
