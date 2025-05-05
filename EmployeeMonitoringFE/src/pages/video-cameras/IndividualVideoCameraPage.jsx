@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router";
 import Sidebar from "../../components/layout/Sidebar";
-import { getCamera } from "../../services/MainService";
+import {
+  getCamera,
+  getAlertRulesForCamera,
+  updateAlertRule,
+} from "../../services/MainService";
 import { useUser } from "../../context/UserContext";
 import { SERVER_URL } from "../../utils/constants";
 import {
@@ -24,11 +28,14 @@ import {
   FiInfo,
   FiRefreshCw,
   FiMenu,
-  FiX
+  FiX,
+  FiSliders,
+  FiToggleLeft,
+  FiToggleRight,
 } from "react-icons/fi";
 import axios from "axios";
+import { LoadingComponent } from "../../components/LoadingComponent";
 
-// Import PPE object images
 import excavatorImg from "../../assets/objects/excavator.jpg";
 import glovesImg from "../../assets/objects/gloves.jpg";
 import hardhatImg from "../../assets/objects/hardhat.jpg";
@@ -55,7 +62,6 @@ import vanImg from "../../assets/objects/van.jpg";
 import vehicleImg from "../../assets/objects/vehicle.jpg";
 import wheelLoaderImg from "../../assets/objects/wheel-loader.jpg";
 
-// Create a mapping of PPE objects to their images
 const ppeImageMapping = {
   Excavator: excavatorImg,
   Gloves: glovesImg,
@@ -84,6 +90,86 @@ const ppeImageMapping = {
   "wheel loader": wheelLoaderImg,
 };
 
+const extractRequiredFiltersFromRules = (rules) => {
+  const requiredFilters = new Set();
+  let needsFaceRecognition = false;
+
+  rules.forEach((rule) => {
+    if (!rule.is_active) return;
+
+    try {
+      // Parse conditions_json if it's a string
+      const conditions =
+        typeof rule.conditions_json === "string"
+          ? JSON.parse(rule.conditions_json).conditions
+          : rule.conditions_json.conditions;
+
+      if (!conditions) return;
+
+      conditions.forEach((condition) => {
+        if (condition.type === "face_recognition") {
+          needsFaceRecognition = true;
+        }
+
+        // For object detection, add the object name to required filters
+        if (condition.type === "object_detected" && condition.object_name) {
+          requiredFilters.add(condition.object_name);
+        }
+
+        // For PPE missing conditions, we need specific detectors
+        if (condition.type === "ppe_missing") {
+          const ppeType = condition.ppe_type;
+          if (ppeType === "mask") {
+            requiredFilters.add("NO-Mask");
+            requiredFilters.add("Person");
+          } else if (ppeType === "helmet") {
+            requiredFilters.add("NO-Hardhat");
+            requiredFilters.add("Person");
+          } else if (ppeType === "vest") {
+            requiredFilters.add("NO-Safety Vest");
+            requiredFilters.add("Person");
+          }
+        }
+
+        // For object count conditions
+        if (condition.type === "object_count" && condition.object_name) {
+          requiredFilters.add(condition.object_name);
+        }
+      });
+    } catch (err) {
+      console.error("Error parsing rule conditions:", err);
+    }
+  });
+
+  return {
+    objectFilters: Array.from(requiredFilters),
+    needsFaceRecognition,
+  };
+};
+
+const buildStreamUrlFromRules = () => {
+  if (!camera?.name || !token) return "";
+
+  // Start with the base URL
+  let url = `${SERVER_URL}/video-cameras/${camera.name}/stream?token=${token}`;
+
+  // Add face recognition if needed
+  if (isFaceRecognitionEnabled) {
+    url += "&face_recognition=true";
+  }
+
+  // Add object filters - either from user selection or from rules
+  const activeFilters = filters.length > 0 ? filters : [];
+
+  if (activeFilters.length > 0) {
+    activeFilters.forEach((filter) => {
+      url += `&${filter}=true`;
+    });
+  }
+
+  return url;
+};
+
 const IndividualVideoCameraPage = () => {
   const { cameraId } = useParams();
   const navigate = useNavigate();
@@ -103,6 +189,9 @@ const IndividualVideoCameraPage = () => {
   const { token } = useUser();
   const [filters, setFilters] = useState([]);
   const [showOptionsDropdown, setShowOptionsDropdown] = useState(false);
+  const [cameraRules, setCameraRules] = useState([]);
+  const [rulesLoading, setRulesLoading] = useState(false);
+  const [rulesError, setRulesError] = useState(null);
   const optionsButtonRef = useRef(null);
 
   const faceRecognitionSliderRef = useRef(null);
@@ -126,13 +215,22 @@ const IndividualVideoCameraPage = () => {
 
   const buildStreamUrl = () => {
     if (!camera?.name || !token) return "";
+
+    // Start with the base URL
     let url = `${SERVER_URL}/video-cameras/${camera.name}/stream?token=${token}`;
-    if (isFaceRecognitionEnabled) url += "&face_recognition=true";
+
+    // Add face recognition filter if enabled
+    if (isFaceRecognitionEnabled) {
+      url += "&face_recognition=true";
+    }
+
+    // Add detection filters
     if (filters.length > 0) {
       filters.forEach((filter) => {
         url += `&${filter}=true`;
       });
     }
+
     return url;
   };
 
@@ -140,6 +238,8 @@ const IndividualVideoCameraPage = () => {
     setRefreshing(true);
     setIsStreamActive(false);
     setError(null);
+    setRulesLoading(true);
+    setRulesError(null);
     try {
       const response = await getCamera(cameraId);
       const cam = response.data.camera;
@@ -147,6 +247,14 @@ const IndividualVideoCameraPage = () => {
       const faceRec = cam?.filters?.includes("face_recognition");
       setIsFaceRecognitionEnabled(faceRec);
       setStreamUrl(buildStreamUrl());
+
+      try {
+        const rulesResponse = await getAlertRulesForCamera(cameraId);
+        setCameraRules(rulesResponse.data || []);
+      } catch (ruleErr) {
+        console.error("Failed to fetch rules for camera:", ruleErr);
+        setRulesError(ruleErr.response?.data?.error || "Failed to load rules.");
+      }
     } catch (err) {
       console.error("Failed to fetch camera details:", err);
       setError("Failed to load camera details. Please try again later.");
@@ -154,6 +262,7 @@ const IndividualVideoCameraPage = () => {
     } finally {
       setRefreshing(false);
       setLoading(false);
+      setRulesLoading(false);
     }
   };
 
@@ -203,6 +312,24 @@ const IndividualVideoCameraPage = () => {
     };
   }, [optionsButtonRef]);
 
+  useEffect(() => {
+    // When camera rules load or change, extract required filters from them
+    if (cameraRules.length > 0) {
+      const { objectFilters, needsFaceRecognition } =
+        extractRequiredFiltersFromRules(cameraRules);
+
+      // If we're not in manual mode (user hasn't set filters), use rule-based filters
+      if (filters.length === 0) {
+        setFilters(objectFilters);
+      }
+
+      // If face recognition is needed by a rule, enable it
+      if (needsFaceRecognition && !isFaceRecognitionEnabled) {
+        setIsFaceRecognitionEnabled(true);
+      }
+    }
+  }, [cameraRules]);
+
   const handleManualRefresh = () => {
     setLoading(true);
     setIsStreamActive(false);
@@ -245,68 +372,71 @@ const IndividualVideoCameraPage = () => {
   };
 
   const DeleteModal = () => (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-neutral-800 rounded-lg p-6 max-w-md w-full mx-4">
-                  <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-xl font-semibold">Confirm Deletion</h3>
-                      <button onClick={handleDeleteCancel} className="text-neutral-400 hover:text-white">
-                          <FiX size={24} />
-                      </button>
-                  </div>
-                  <p className="mb-6">
-                      Are you sure you want to delete <span className="font-semibold">{camera.name}</span> camera? 
-                      This action cannot be undone.
-                  </p>
-                  <div className="flex justify-end space-x-3">
-                      <button 
-                          onClick={handleDeleteCancel} 
-                          className="cursor-pointer px-4 py-2 border border-neutral-600 rounded-md hover:bg-neutral-700"
-                      >
-                          Cancel
-                      </button>
-                      <button 
-                          onClick={handleDeleteConfirm} 
-                          className="cursor-pointer px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-                      >
-                          Delete
-                      </button>
-                  </div>
-              </div>
-          </div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-neutral-800 rounded-lg p-6 max-w-md w-full mx-4">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold">Confirm Deletion</h3>
+          <button
+            onClick={handleDeleteCancel}
+            className="text-neutral-400 hover:text-white"
+          >
+            <FiX size={24} />
+          </button>
+        </div>
+        <p className="mb-6">
+          Are you sure you want to delete{" "}
+          <span className="font-semibold">{camera.name}</span> camera? This
+          action cannot be undone.
+        </p>
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={handleDeleteCancel}
+            className="cursor-pointer px-4 py-2 border border-neutral-600 rounded-md hover:bg-neutral-700"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleDeleteConfirm}
+            className="cursor-pointer px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+  };
+
+  const handleDeleteConfirm = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.delete(
+        `${SERVER_URL}/video-cameras/${cameraId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-    
-      const handleDeleteCancel = () => {
-        setShowDeleteModal(false);
+      if (res.status === 200) {
+        navigate("/video-cameras");
+      } else {
+        setError(res.data.message || "Failed to delete camera.");
       }
+    } catch (err) {
+      console.error("Error deleting camera:", err);
+      setError(
+        err.response?.data?.message ||
+          "Failed to delete camera. Please try again."
+      );
+    } finally {
+      setLoading(false);
+      setShowOptionsDropdown(false);
+    }
+  };
 
-      const handleDeleteConfirm = async () => {
-        try {
-            setLoading(true);
-            const res = await axios.delete(
-              `${SERVER_URL}/video-cameras/${cameraId}`,
-              { headers: { Authorization: `Bearer ${token}` } }
-            );
-            if (res.status === 200) {
-              navigate("/video-cameras");
-            } else {
-              setError(res.data.message || "Failed to delete camera.");
-            }
-          } catch (err) {
-            console.error("Error deleting camera:", err);
-            setError(
-              err.response?.data?.message ||
-                "Failed to delete camera. Please try again."
-            );
-          } finally {
-            setLoading(false);
-            setShowOptionsDropdown(false);
-          }
-        }
-      
-
-    const handleCameraDelete = async () => {
-        setShowDeleteModal(true);
-    };
+  const handleCameraDelete = async () => {
+    setShowDeleteModal(true);
+  };
 
   const saveZone = async () => {
     if (currentZone && currentZone.points.length >= 3) {
@@ -382,6 +512,22 @@ const IndividualVideoCameraPage = () => {
   const handleToggleFaceRecognition = (event) => {
     const newFaceRecognitionState = event.target.checked;
     setIsFaceRecognitionEnabled(newFaceRecognitionState);
+  };
+
+  const toggleRuleActiveStatus = async (rule) => {
+    setRulesLoading(true);
+    try {
+      await updateAlertRule(rule.id, { is_active: !rule.is_active });
+      const rulesResponse = await getAlertRulesForCamera(cameraId);
+      setCameraRules(rulesResponse.data || []);
+    } catch (err) {
+      console.error("Failed to toggle rule status:", err);
+      setRulesError(
+        err.response?.data?.error || "Failed to update rule status."
+      );
+    } finally {
+      setRulesLoading(false);
+    }
   };
 
   return (
@@ -653,6 +799,62 @@ const IndividualVideoCameraPage = () => {
                   </div>
                 </div>
               </div>
+
+              <div className="bg-neutral-800 rounded-lg shadow-md p-4 mt-6">
+                <h3 className="text-lg font-semibold mb-3 flex items-center">
+                  <FiSliders className="mr-2" /> Camera Rules
+                </h3>
+                {rulesLoading && <LoadingComponent size="small" />}
+                {rulesError && (
+                  <p className="text-red-400 text-sm mb-2">
+                    Error loading rules: {rulesError}
+                  </p>
+                )}
+                {!rulesLoading && !rulesError && (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                    {cameraRules.length > 0 ? (
+                      cameraRules.map((rule) => (
+                        <div
+                          key={rule.id}
+                          className="flex justify-between items-center bg-neutral-700 p-2 rounded"
+                        >
+                          <span
+                            className="text-sm flex-grow mr-4"
+                            title={rule.description}
+                          >
+                            {rule.description.length > 40
+                              ? `${rule.description.substring(0, 40)}...`
+                              : rule.description}
+                          </span>
+                          <button
+                            onClick={() => toggleRuleActiveStatus(rule)}
+                            className={`p-1 rounded ${
+                              rule.is_active
+                                ? "text-green-400"
+                                : "text-neutral-500"
+                            } hover:bg-neutral-600 transition-colors`}
+                            title={
+                              rule.is_active
+                                ? "Deactivate Rule"
+                                : "Activate Rule"
+                            }
+                          >
+                            {rule.is_active ? (
+                              <FiToggleRight size={22} />
+                            ) : (
+                              <FiToggleLeft size={22} />
+                            )}
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-neutral-500 text-sm">
+                        No rules assigned to this camera.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="bg-neutral-800 rounded-lg shadow-md p-4 flex flex-col">
@@ -783,10 +985,8 @@ const IndividualVideoCameraPage = () => {
             </div>
           </div>
         )}
-      {showDeleteModal && <DeleteModal/>}
-      
+        {showDeleteModal && <DeleteModal />}
       </main>
-
     </div>
   );
 };
