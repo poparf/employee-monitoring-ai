@@ -8,6 +8,7 @@ from .BlacklistRouter import bp as blacklist_bp
 from .ZoneRouter import bp as zones_bp
 from .PersonDetectedRouter import bp as persons_detected_bp
 from .PPERouter import pperouter as ppe_router
+from .alert_rules_routes.AlertRuleRouter import bp as alert_rules_bp
 
 
 def register_blueprints(app):
@@ -21,3 +22,4 @@ def register_blueprints(app):
     app.register_blueprint(zones_bp)
     app.register_blueprint(persons_detected_bp)
     app.register_blueprint(ppe_router)
+    app.register_blueprint(alert_rules_bp)
