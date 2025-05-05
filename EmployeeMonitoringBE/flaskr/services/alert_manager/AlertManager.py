@@ -61,14 +61,25 @@ class AlertManager:
                     success, jpeg_frame = cv.imencode('.jpg', frame)
                     if success:
                         os.makedirs(alerts_path, exist_ok=True)
-                        # Use a more descriptive name including tenant_id to avoid collisions
-                        filename = f"alert_{self.tenant_id}_{alert.type.value}_{int(current_time)}.jpg"
-                        full_screenshot_path = os.path.join(alerts_path, filename)
+                        # Create subdirectory for this tenant if it doesn't exist
+                        tenant_dir = os.path.join(alerts_path, f"tenant_{self.tenant_id}")
+                        os.makedirs(tenant_dir, exist_ok=True)
+                        
+                        # Create more organized filename including date
+                        date_str = datetime.now().strftime("%Y%m%d")
+                        alert_type = alert.type.value if hasattr(alert.type, 'value') else 'generic'
+                        filename = f"alert_{date_str}_{alert_type}_{int(current_time)}.jpg"
+                        full_screenshot_path = os.path.join(tenant_dir, filename)
+                        
                         with open(full_screenshot_path, "wb") as f:
                             f.write(jpeg_frame.tobytes())
-                        # Store relative path or just filename if served statically
-                        alert.screenshot = filename # Store filename or relative path
-                        screenshot_filename = filename # Keep track for logging
+                        
+                        # Store relative path for serving via static routes
+                        screenshot_path = f"alerts/tenant_{self.tenant_id}/{filename}"
+                        alert.screenshot = screenshot_path
+                        screenshot_filename = screenshot_path
+                        
+                        print(f"Screenshot saved at: {full_screenshot_path}")
                     else:
                         print(f"Failed to encode screenshot for alert type {alert.type.value}.")
                 except Exception as e:

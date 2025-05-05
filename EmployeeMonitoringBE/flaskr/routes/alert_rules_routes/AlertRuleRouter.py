@@ -57,6 +57,7 @@ def create_alert_rule(current_user):
             "is_active": true, // optional, default is false
             "priority": 1, // 1 - low 2 - medium 3 - high
             "conditions_json": "{}",
+            "cooldown_seconds": 60, // optional, default is 0 (no cooldown)
             "location": { // At least one camera or one zone
                 "cameras": [1, 2],
                 "zones": []
@@ -103,6 +104,7 @@ def create_alert_rule(current_user):
             is_active=data.get("is_active", False),
             priority=priority,
             conditions_json=data["conditions_json"],
+            cooldown_seconds=data.get("cooldown_seconds", 0),  # Default to 0 if not provided
         )
         location = data.get("location", {})
         for camera_id in location.get("cameras", []):
@@ -176,6 +178,8 @@ def update_alert_rule(current_user, rule_id):
             alert_rule.description = data["description"]
         if "is_active" in data:
             alert_rule.is_active = data["is_active"]
+        if "cooldown_seconds" in data:
+            alert_rule.cooldown_seconds = data["cooldown_seconds"]
         if "priority" in data:
             priority_str = data["priority"]
             try:

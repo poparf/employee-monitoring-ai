@@ -88,3 +88,127 @@ def get_alerts(current_user):
         # Log the error e
         app.logger.error(f"Unexpected error in retrieving alerts: {str(e)}")
         return jsonify({"error": "An unexpected error occurred"}), 500
+
+
+@bp.route("/<int:alert_id>", methods=["GET"])
+@permission_required("GET_ALERTS")
+def get_alert_by_id(current_user, alert_id):
+    """
+    Retrieves a single alert by ID with all its details, including screenshot path.
+    
+    Args:
+        alert_id (int): The ID of the alert to retrieve.
+        
+    Returns:
+        JSON response with the alert details or an error message.
+    """
+    db = get_tenant_db()
+    try:
+        alert = db.query(Alert).filter(Alert.id == alert_id).first()
+        
+        if not alert:
+            return jsonify({"error": f"Alert with ID {alert_id} not found"}), 404
+            
+        alert_data = alert.to_dict()
+        
+        # Add the base URL for screenshots if a screenshot exists
+        if alert.screenshot:
+            # Create the full URL for the screenshot
+            base_url = request.host_url.rstrip('/')
+            if not alert.screenshot.startswith('http'):
+                # If it's a relative path, create a full URL
+                if alert.screenshot.startswith('/'):
+                    alert_data['screenshot_url'] = f"{base_url}{alert.screenshot}"
+                else:
+                    alert_data['screenshot_url'] = f"{base_url}/static/{alert.screenshot}"
+            else:
+                # If it's already a full URL, use it as is
+                alert_data['screenshot_url'] = alert.screenshot
+        
+        return jsonify({"alert": alert_data}), 200
+        
+    except SQLAlchemyError as e:
+        app.logger.error(f"Database error retrieving alert {alert_id}: {str(e)}")
+        return jsonify({"error": "Database error occurred"}), 500
+    except Exception as e:
+        app.logger.error(f"Unexpected error retrieving alert {alert_id}: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
+
+@bp.route("/<int:alert_id>", methods=["PUT"])
+@permission_required("GET_ALERTS")
+def update_alert(current_user, alert_id):
+    """
+    Updates an existing alert with provided data.
+    
+    Request Body (all fields optional):
+    {
+        "status": "active" or "resolved",
+        "explanation": "Updated explanation text",
+        "level": "low", "medium", or "high",
+        "resolved_at": "2025-05-05T10:00:00" (ISO format, required if status is "resolved")
+    }
+    
+    Args:
+        alert_id (int): The ID of the alert to update
+        
+    Returns:
+        JSON response with success message or error
+    """
+    data = request.get_json()
+    db = get_tenant_db()
+    
+    try:
+        # Find the alert to update
+        alert = db.query(Alert).filter(Alert.id == alert_id).first()
+        
+        if not alert:
+            return jsonify({"error": f"Alert with ID {alert_id} not found"}), 404
+        
+        # Update alert fields if provided in the request
+        if "status" in data:
+            try:
+                new_status = AlertStatus(data["status"].lower())
+                
+                # If changing to resolved, require resolved_at timestamp
+                if new_status == AlertStatus.RESOLVED and alert.status != AlertStatus.RESOLVED:
+                    # If resolved_at not provided in request, use current time
+                    if "resolved_at" in data:
+                        try:
+                            resolved_at = datetime.fromisoformat(data["resolved_at"])
+                        except ValueError:
+                            return jsonify({"error": "Invalid resolved_at format. Use ISO 8601 (YYYY-MM-DDTHH:MM:SS)."}), 400
+                    else:
+                        resolved_at = datetime.now()
+                        
+                    alert.resolved_at = resolved_at
+                
+                alert.status = new_status
+            except ValueError:
+                return jsonify({"error": f"Invalid status value: {data['status']}. Allowed values: active, resolved"}), 400
+        
+        if "level" in data:
+            try:
+                alert.level = AlertLevel(data["level"].lower())
+            except ValueError:
+                return jsonify({"error": f"Invalid level value: {data['level']}. Allowed values: low, medium, high"}), 400
+        
+        if "explanation" in data:
+            alert.explanation = data["explanation"]
+        
+        # Commit changes to the database
+        db.commit()
+        
+        return jsonify({
+            "message": "Alert updated successfully",
+            "alert": alert.to_dict()
+        }), 200
+        
+    except SQLAlchemyError as e:
+        db.rollback()
+        app.logger.error(f"Database error updating alert {alert_id}: {str(e)}")
+        return jsonify({"error": "Database error occurred"}), 500
+    except Exception as e:
+        db.rollback()
+        app.logger.error(f"Unexpected error updating alert {alert_id}: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500

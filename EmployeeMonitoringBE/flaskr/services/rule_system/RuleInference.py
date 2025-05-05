@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from flaskr.entities.Alert import Alert, AlertType, AlertLevel, AlertStatus
 
 class RuleInference:
@@ -13,6 +13,7 @@ class RuleInference:
         self.rules = []
         self.parsed_rules = []
         self.frame_context = {}
+        self.last_triggered = {}  # Store when each rule was last triggered {rule_id: timestamp}
         if rules:
             self.load_rules(rules)
 
@@ -113,18 +114,23 @@ class RuleInference:
             if not object_name:
                 return False
                 
-            # Get the count of objects of this type
-            actual_count = self.frame_context.get("detected_objects", {}).get(object_name, 0)
+            # Get the count of objects of this type (case-insensitive)
+            actual_count = 0
+            for obj_name, obj_count in self.frame_context.get("detected_objects", {}).items():
+                if obj_name.lower() == object_name.lower():
+                    actual_count = obj_count
+                    break
             
             # First check basic count condition
             if not self._compare(actual_count, operator, count):
+                print(f"Object count check failed: {object_name.lower()} count is {actual_count}, needed {operator} {count}")
                 return False
                 
             # If dwell time specified, check that too
             if dwell_time > 0:
                 # Find any object of this type that has been present for at least dwell_time
                 for data in self.frame_context.get("dwell_times", {}).values():
-                    if data.get("class_name") == object_name and data.get("dwell_time", 0) >= dwell_time:
+                    if data.get("class_name", "").lower() == object_name.lower() and data.get("dwell_time", 0) >= dwell_time:
                         return True
                 print(f"Warning: No {object_name} found with sufficient dwell time in frame context for rule condition: {condition}.")
                 return False
@@ -138,7 +144,14 @@ class RuleInference:
             if not object_name or not operator or value is None: 
                 print(f"Missing required parameter for object_count condition: object_name={object_name}, operator={operator}, value={value}")
                 return False
-            count = self.frame_context.get("detected_objects", {}).get(object_name, 0)
+            
+            # Case-insensitive object count
+            count = 0
+            for obj_name, obj_count in self.frame_context.get("detected_objects", {}).items():
+                if obj_name.lower() == object_name.lower():
+                    count = obj_count
+                    break
+                    
             result = self._compare(count, operator, value)
             print(f"Object count condition for {object_name}: actual={count}, expected {operator} {value}, result={result}")
             return result
@@ -150,7 +163,7 @@ class RuleInference:
             max_dwell = 0
             # Iterate through dwell_times dict {box_id: {"class_name": ..., "dwell_time": ...}}
             for data in self.frame_context.get("dwell_times", {}).values():
-                if data.get("class_name") == object_name:
+                if data.get("class_name", "").lower() == object_name.lower():
                     max_dwell = max(max_dwell, data.get("dwell_time", 0))
             return self._compare(max_dwell, operator, value)
 
@@ -336,15 +349,28 @@ class RuleInference:
 
         timestamp = self.frame_context.get("timestamp", datetime.now())
         camera_id = self.frame_context.get("camera_id")
+        current_time = datetime.now()
         
         print(f"Starting inference with {len(self.parsed_rules)} rules for camera {camera_id}")
         print(f"Frame context summary: Objects detected: {self.frame_context.get('detected_objects', {})}")
 
         for parsed_rule in self.parsed_rules:
+            rule_id = parsed_rule["rule_id"]
+            
+            # Check if rule is on cooldown
+            if rule_id in self.last_triggered:
+                # Get the rule from original rules list to access cooldown_seconds
+                rule = next((r for r in self.rules if r.id == rule_id), None)
+                if rule and rule.cooldown_seconds > 0:
+                    time_since_last_alert = (current_time - self.last_triggered[rule_id]).total_seconds()
+                    if time_since_last_alert < rule.cooldown_seconds:
+                        print(f"Rule {rule_id} is on cooldown. {rule.cooldown_seconds - time_since_last_alert:.1f} seconds remaining.")
+                        continue
+            
             conditions = parsed_rule["conditions_data"]["conditions"]
             logical_op = parsed_rule["conditions_data"]["logical_operator"].upper() # AND or OR
             
-            print(f"Evaluating rule {parsed_rule['rule_id']}: {parsed_rule['description']}")
+            print(f"Evaluating rule {rule_id}: {parsed_rule['description']}")
             print(f"Logical operator: {logical_op}")
 
             results = [self._evaluate_condition(cond) for cond in conditions]
@@ -357,16 +383,19 @@ class RuleInference:
             elif logical_op == "OR":
                 rule_triggered = any(results)
             else:
-                 print(f"Warning: Unknown logical operator '{logical_op}' for rule {parsed_rule['rule_id']}. Defaulting to AND.")
+                 print(f"Warning: Unknown logical operator '{logical_op}' for rule {rule_id}. Defaulting to AND.")
                  rule_triggered = all(results)
 
-            print(f"Rule {parsed_rule['rule_id']} triggered: {rule_triggered}")
+            print(f"Rule {rule_id} triggered: {rule_triggered}")
 
             if rule_triggered:
+                # Update the last triggered time for this rule
+                self.last_triggered[rule_id] = current_time
+                
                 # --- Create Alert Object ---
                 alert_level = self._map_priority_to_level(parsed_rule["priority"])
                 alert_type = self._determine_alert_type(conditions) # Determine type based on conditions
-                explanation = parsed_rule["description"] or f"Rule {parsed_rule['rule_id']} triggered."
+                explanation = parsed_rule["description"] or f"Rule {rule_id} triggered."
 
                 # Try to find relevant employee/zone IDs from context if applicable
                 employee_id = None
@@ -390,7 +419,6 @@ class RuleInference:
                                  employee_id = emp_id
                                  break
 
-
                 alert = Alert(
                     type=alert_type,
                     level=alert_level,
@@ -400,7 +428,7 @@ class RuleInference:
                     camera_id=camera_id,
                     employee_id=employee_id, # May be None
                     zone_id=zone_id,         # May be None
-                    alert_rule_id=parsed_rule["rule_id"] # Link alert to the rule
+                    alert_rule_id=rule_id # Link alert to the rule
                 )
                 triggered_alerts.append(alert)
                 # -------------------------
