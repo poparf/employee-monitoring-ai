@@ -2,7 +2,7 @@ import time
 import os
 import cv2 as cv
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import g, current_app
 from flaskr.db import get_tenant_db
 from flaskr.entities.Alert import Alert, AlertStatus # Assuming AlertStatus is in Alert.py
@@ -52,80 +52,109 @@ class AlertManager:
         with self.app_instance.app_context():
             g.tenant_id = self.tenant_id # Set tenant context for this operation
             db = get_tenant_db()
-            alerts_path = self.app_instance.config.get('ALERTS_SCREENSHOTS_PATH', 'flaskr/static/alerts') # Get path from config or default
+            
+            # Define the base path for storing alert screenshots (outside static folder)
+            # Ensure this path is configured in your Flask app config
+            alerts_base_path = self.app_instance.config.get('ALERT_SCREENSHOTS_BASE_PATH', 'flaskr/storage/alert_screenshots')
 
-            # --- Save Screenshot (if frame provided and path needed) ---
-            screenshot_filename = None
-            if frame is not None and not getattr(alert, 'screenshot', None): # Only save if not already set
+            # --- Prepare Alert for DB (Set defaults and ensure correct timestamp type) ---
+            alert.status = alert.status or AlertStatus.ACTIVE
+            
+            # Ensure timestamp is a timezone-aware datetime object
+            if isinstance(alert.timestamp, (int, float)):
                 try:
-                    success, jpeg_frame = cv.imencode('.jpg', frame)
-                    if success:
-                        os.makedirs(alerts_path, exist_ok=True)
-                        # Create subdirectory for this tenant if it doesn't exist
-                        tenant_dir = os.path.join(alerts_path, f"tenant_{self.tenant_id}")
-                        os.makedirs(tenant_dir, exist_ok=True)
-                        
-                        # Create more organized filename including date
-                        date_str = datetime.now().strftime("%Y%m%d")
-                        alert_type = alert.type.value if hasattr(alert.type, 'value') else 'generic'
-                        filename = f"alert_{date_str}_{alert_type}_{int(current_time)}.jpg"
-                        full_screenshot_path = os.path.join(tenant_dir, filename)
-                        
-                        with open(full_screenshot_path, "wb") as f:
-                            f.write(jpeg_frame.tobytes())
-                        
-                        # Store relative path for serving via static routes
-                        screenshot_path = f"alerts/tenant_{self.tenant_id}/{filename}"
-                        alert.screenshot = screenshot_path
-                        screenshot_filename = screenshot_path
-                        
-                        print(f"Screenshot saved at: {full_screenshot_path}")
-                    else:
-                        print(f"Failed to encode screenshot for alert type {alert.type.value}.")
-                except Exception as e:
-                     print(f"Error saving screenshot for alert type {alert.type.value}: {e}")
-            # -------------------------------------------------------
+                    # Convert Unix timestamp (float/int) to timezone-aware datetime (UTC)
+                    alert.timestamp = datetime.fromtimestamp(alert.timestamp, tz=timezone.utc)
+                except (TypeError, ValueError):
+                    print(f"Warning: Could not convert numeric timestamp {alert.timestamp} to datetime. Using current time.")
+                    alert.timestamp = datetime.now(timezone.utc)
+            elif isinstance(alert.timestamp, datetime):
+                 # If it's already datetime, ensure it's timezone-aware (assume UTC if naive)
+                 if alert.timestamp.tzinfo is None:
+                     alert.timestamp = alert.timestamp.replace(tzinfo=timezone.utc)
+            else:
+                # Fallback if timestamp is invalid type
+                print(f"Warning: Invalid timestamp type ({type(alert.timestamp)}). Using current time.")
+                alert.timestamp = datetime.now(timezone.utc)
 
-            # --- Save Alert to DB ---
+            alert.screenshot = None # Initialize screenshot path
+
+            # --- Initial Save to get Alert ID ---
             try:
-                # Ensure required fields are set (adjust based on Alert entity)
-                alert.status = alert.status or AlertStatus.ACTIVE # Ensure status is set
-                alert.timestamp = alert.timestamp or datetime.now() # Ensure timestamp
-
-                # Always commit the alert to the database
                 db.add(alert)
-                db.commit()
-                
-                print(f"Alert (Rule: {rule_id}, Type: {alert.type.value}, Screenshot: {screenshot_filename}) saved successfully for tenant {self.tenant_id}.")
-
-                # Update cooldown timestamp after successful save
-                if rule_id and self.cooldown_period > 0:
-                    self.alert_cooldowns[rule_id] = current_time
-
-                # Return success
-                return True
-
+                db.flush() # Flush to get the alert ID assigned
+                alert_id = alert.id # Get the assigned ID
+                print(f"Alert flushed, assigned ID: {alert_id}")
             except Exception as e:
-                # Handle database errors
                 db.rollback()
-                print(f"ERROR saving alert (Rule: {rule_id}, Type: {alert.type.value}) to database for tenant {self.tenant_id}: {e}")
-                
-                # Try a second time with a simplified alert if the first attempt failed
+                print(f"ERROR: Failed to initially save alert to get ID for tenant {self.tenant_id}: {e}")
+                # Attempt simplified fallback without screenshot
                 try:
-                    # Create a more basic alert with only essential attributes
+                    # Ensure timestamp is correct type even in fallback
+                    fallback_timestamp = datetime.now(timezone.utc) 
                     simplified_alert = Alert(
-                        type=alert.type,
-                        level=alert.level,
-                        timestamp=datetime.now(),
-                        status=AlertStatus.ACTIVE,
-                        explanation=f"Alert for rule {rule_id}" if rule_id else "System alert",
+                        type=alert.type, level=alert.level, timestamp=fallback_timestamp,
+                        status=AlertStatus.ACTIVE, explanation=f"Alert for rule {rule_id}" if rule_id else "System alert",
+                        camera_id=getattr(alert, 'camera_id', None), employee_id=getattr(alert, 'employee_id', None),
+                        zone_id=getattr(alert, 'zone_id', None), alert_rule_id=rule_id
                     )
                     db.add(simplified_alert)
                     db.commit()
-                    print(f"Simplified fallback alert saved successfully for tenant {self.tenant_id}.")
-                    return True
+                    print(f"Simplified fallback alert saved successfully (no screenshot attempted) for tenant {self.tenant_id}.")
+                    # Update cooldown timestamp after successful fallback commit
+                    if rule_id and self.cooldown_period > 0:
+                         self.alert_cooldowns[rule_id] = current_time
+                    return True # Return success for the simplified alert
                 except Exception as e2:
                     db.rollback()
                     print(f"CRITICAL ERROR: Failed to save even simplified alert: {e2}")
-                    return False
+                    return False # Return failure if even simplified save fails
+
+            # --- Save Screenshot (if frame provided and we have an ID) ---
+            full_screenshot_path = None
+            if frame is not None and alert_id is not None:
+                try:
+                    success, jpeg_frame = cv.imencode('.jpg', frame)
+                    if success:
+                        full_screenshot_path = os.path.join(current_app.config['ALERTS_SCREENSHOTS_PATH'], f"alert_{alert_id}.jpg")
+                        os.makedirs(current_app.config["ALERTS_SCREENSHOTS_PATH"], exist_ok=True) 
+                        with open(full_screenshot_path, 'wb') as f:
+                            f.write(jpeg_frame.tobytes())
+                        
+                        alert.screenshot = full_screenshot_path
+                        print(f"Screenshot saved at: {full_screenshot_path}")
+                    else:
+                        print(f"Failed to encode screenshot for alert ID {alert_id}.")
+                except Exception as e:
+                     print(f"Error saving screenshot for alert ID {alert_id}: {e}")
+                     # Keep alert.screenshot as None if saving failed
+                     alert.screenshot = None
+                     full_screenshot_path = None # Ensure path is None if saving failed
+            # -------------------------------------------------------
+
+            # --- Final Commit Alert to DB (with or without screenshot path) ---
+            try:
+                # The alert object is already added and flushed, now we commit the final state
+                # (including the screenshot path if it was successfully saved)
+                db.commit()
+                
+                print(f"Alert (ID: {alert_id}, Rule: {rule_id}, Type: {alert.type.value}, Screenshot Path: {alert.screenshot}) committed successfully for tenant {self.tenant_id}.")
+
+                # Update cooldown timestamp after successful commit
+                if rule_id and self.cooldown_period > 0:
+                    self.alert_cooldowns[rule_id] = current_time
+
+                return True # Return success
+
+            except Exception as e:
+                db.rollback()
+                print(f"ERROR committing final alert state (ID: {alert_id}) to database for tenant {self.tenant_id}: {e}")
+                # Attempt to clean up saved screenshot file if commit failed
+                if full_screenshot_path and os.path.exists(full_screenshot_path):
+                    try:
+                        os.remove(full_screenshot_path)
+                        print(f"Cleaned up screenshot file due to commit error: {full_screenshot_path}")
+                    except OSError as rm_err:
+                        print(f"Error removing screenshot file during cleanup: {rm_err}")
+                return False # Return failure
             # ------------------------

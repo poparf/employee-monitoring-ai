@@ -10,6 +10,7 @@ class AlertType(Enum):
     NO_HELMET_DETECTED = "no_helmet_detected"
     NO_MASK_DETECTED = "no_mask_detected"
     NO_VEST_DETECTED = "no_vest_detected"
+    NO_GLOVES_DETECTED = "no_gloves_detected" # Added
     FACE_DETECTED = "face_detected"
 
 class AlertLevel(Enum):

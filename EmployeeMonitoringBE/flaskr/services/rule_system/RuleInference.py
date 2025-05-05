@@ -313,6 +313,7 @@ class RuleInference:
             if ppe_type == "helmet": return AlertType.NO_HELMET_DETECTED
             if ppe_type == "mask": return AlertType.NO_MASK_DETECTED
             if ppe_type == "vest": return AlertType.NO_VEST_DETECTED
+            if ppe_type == "gloves": return AlertType.NO_GLOVES_DETECTED # Added
             # Fallback if PPE type is unknown
             return AlertType.PERSON_DETECTED # Or a generic PPE alert type
 

@@ -1,9 +1,12 @@
-from flask import Blueprint, request, jsonify, current_app as app
+from flask import Blueprint, request, jsonify, current_app as app, send_file, abort
 from flaskr.entities.Alert import Alert, AlertType, AlertLevel, AlertStatus
+from flaskr.entities.VideoCamera import VideoCamera
+from flaskr.entities.Zone import Zone
 from flaskr.db import get_tenant_db
 from flaskr.middlewares.PermissionMiddleware import permission_required
 from datetime import datetime
 from sqlalchemy.exc import SQLAlchemyError
+import os
 
 bp = Blueprint("alerts", __name__, url_prefix="/alerts")
 
@@ -30,7 +33,13 @@ def get_alerts(current_user):
     args = request.args
     db = get_tenant_db()
     try:
-        query = db.query(Alert)
+        # Join with VideoCamera and Zone to get their names
+        query = db.query(Alert,
+                         VideoCamera.name.label('camera_name'),
+                         VideoCamera.location.label('camera_location'),
+                         Zone.name.label('zone_name')) \
+                .outerjoin(VideoCamera, Alert.camera_id == VideoCamera.id) \
+                .outerjoin(Zone, Alert.zone_id == Zone.id)
 
         if 'status' in args:
             try:
@@ -76,9 +85,20 @@ def get_alerts(current_user):
             except ValueError:
                 return jsonify({"error": f"Invalid end_time format: {args['end_time']}. Use ISO 8601."}), 400
 
-        # TODO: Add pagination later if needed
-        alerts = query.all()
-        return jsonify({"alerts": [alert.to_dict() for alert in alerts]}), 200
+        # Execute the query
+        results = query.all()
+        
+        # Process results to include camera and zone information
+        alerts_data = []
+        for row in results:
+            alert_dict = row[0].to_dict()  # Get dict from Alert object
+            # Add camera and zone information
+            alert_dict['camera_name'] = row[1]  # camera_name
+            alert_dict['camera_location'] = row[2]  # camera_location
+            alert_dict['zone_name'] = row[3]  # zone_name
+            alerts_data.append(alert_dict)
+        
+        return jsonify({"alerts": alerts_data}), 200
 
     except SQLAlchemyError as e:
         # Log the error e
@@ -104,12 +124,26 @@ def get_alert_by_id(current_user, alert_id):
     """
     db = get_tenant_db()
     try:
-        alert = db.query(Alert).filter(Alert.id == alert_id).first()
+        # Join with VideoCamera and Zone to get more information
+        result = db.query(Alert,
+                         VideoCamera.name.label('camera_name'),
+                         VideoCamera.location.label('camera_location'),
+                         Zone.name.label('zone_name')) \
+                .outerjoin(VideoCamera, Alert.camera_id == VideoCamera.id) \
+                .outerjoin(Zone, Alert.zone_id == Zone.id) \
+                .filter(Alert.id == alert_id) \
+                .first()
         
-        if not alert:
+        if not result:
             return jsonify({"error": f"Alert with ID {alert_id} not found"}), 404
             
+        alert = result[0]
         alert_data = alert.to_dict()
+        
+        # Add the additional information from the joins
+        alert_data['camera_name'] = result[1]
+        alert_data['camera_location'] = result[2]
+        alert_data['zone_name'] = result[3]
         
         # Add the base URL for screenshots if a screenshot exists
         if alert.screenshot:
@@ -120,7 +154,18 @@ def get_alert_by_id(current_user, alert_id):
                 if alert.screenshot.startswith('/'):
                     alert_data['screenshot_url'] = f"{base_url}{alert.screenshot}"
                 else:
+                    # Main URL using the correct path structure
                     alert_data['screenshot_url'] = f"{base_url}/static/{alert.screenshot}"
+                    
+                    # Provide alternate URLs as fallbacks for different possible path formats
+                    alert_data['screenshot_url_alt1'] = f"{base_url}/{alert.screenshot}"
+                    
+                    # Extract filename from path for a direct reference as fallback
+                    filename = alert.screenshot.split('/')[-1] if '/' in alert.screenshot else alert.screenshot
+                    alert_data['screenshot_url_alt2'] = f"{base_url}/static/alert_screenshots/{filename}"
+                    
+                    # For compatibility with older stored paths that might use alerts (plural) instead of alert_screenshots
+                    alert_data['screenshot_url_alt3'] = f"{base_url}/static/alerts/{filename}"
             else:
                 # If it's already a full URL, use it as is
                 alert_data['screenshot_url'] = alert.screenshot
@@ -212,3 +257,36 @@ def update_alert(current_user, alert_id):
         db.rollback()
         app.logger.error(f"Unexpected error updating alert {alert_id}: {str(e)}")
         return jsonify({"error": "An unexpected error occurred"}), 500
+
+
+@bp.route("/screenshot/<int:alert_id>", methods=["GET"])
+@permission_required("GET_ALERTS")
+def get_alert_screenshot(current_user, alert_id):
+    """
+    Retrieves and serves the screenshot for a specific alert
+    
+    Args:
+        alert_id (int): The ID of the alert whose screenshot should be retrieved
+        
+    Returns:
+        The screenshot file or an error response
+    """
+    db = get_tenant_db()
+    try:
+        # Get the alert
+        alert = db.query(Alert).filter(Alert.id == alert_id).first()
+        
+        if not alert:
+            return jsonify({"error": f"Alert with ID {alert_id} not found"}), 404
+            
+        if not alert.screenshot:
+            return jsonify({"error": "This alert has no screenshot"}), 404
+        print(f"Screenshot path: {alert.screenshot}")
+        return send_file(alert.screenshot, mimetype='image/jpeg')
+        
+    except SQLAlchemyError as e:
+        app.logger.error(f"Database error retrieving screenshot for alert {alert_id}: {str(e)}")
+        return jsonify({"error": "Database error occurred"}), 500
+    except Exception as e:
+        app.logger.error(f"Unexpected error retrieving screenshot for alert {alert_id}: {str(e)}")
+        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500

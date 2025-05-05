@@ -23,6 +23,7 @@ import os
 from collections import defaultdict
 from flaskr.entities.alert_system.RuleCameraLink import RuleCameraLink
 from flaskr.entities.alert_system.RuleZoneLink import RuleZoneLink
+from datetime import datetime
 
 bp = Blueprint("video-cameras", __name__, url_prefix="/video-cameras")
 
@@ -64,12 +65,31 @@ def raise_person_detected_alert(camera_name, name, frame, app_instance, tenant_i
         if not success:
             print(f"Failed to encode frame for camera: {camera_name}")
         else:
-            screenshot_path = f"{current_app.config['ALERTS_SCREENSHOTS_PATH']}\\{camera_name}_{int(time.time())}.jpg"
-            with open(screenshot_path, "wb") as f:
+            # Create directory path if needed
+            alerts_path = current_app.config.get('ALERTS_SCREENSHOTS_PATH', 'flaskr/static/alert_screenshots')
+            os.makedirs(alerts_path, exist_ok=True)
+            
+            # Generate organized filename including timestamp
+            timestamp = int(time.time())
+            date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{camera_name}_{date_str}.jpg"
+            
+            # Save the file in the proper directory
+            full_screenshot_path = os.path.join(alerts_path, filename)
+            with open(full_screenshot_path, "wb") as f:
                 f.write(jpeg_frame.tobytes())
+                
+            # Store the relative path for serving via static routes
+            screenshot_path = f"alert_screenshots/{filename}"
+            
+            print(f"Saved face detection screenshot at: {full_screenshot_path}")
+            
         alert = Alert(type=AlertType.FACE_DETECTED, level=level, \
             screenshot=screenshot_path, status=AlertStatus.ACTIVE,\
-                explanation=f"Face detected: {name}", employee_id=employee_id, zone_id=None)
+                explanation=f"Face detected: {name}", employee_id=employee_id, 
+                # Include the camera ID in the alert
+                camera_id=db.query(VideoCamera).filter_by(name=camera_name).first().id if camera_name else None,
+                zone_id=None)
         db.add(alert)
         db.commit()
 
@@ -359,7 +379,7 @@ def process_camera_frames(camera_name, rtsp_url,
             alerts = rule_inference.infer(frame_context)
     
             for alert in alerts:
-                alert_manager.process_alert(alert)
+                alert_manager.process_alert(alert, frame)
 
             if current_time - last_cleanup_time > cleanup_interval:
                 disappeared_ids = []
