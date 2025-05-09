@@ -137,15 +137,6 @@ Keep it brief and informative.:\n\n${JSON.stringify(filteredAlerts)}}`;
     }
   };
 
-  // Center view functionality
-  const handleCenterView = (alert) => {
-    // Navigate to the appropriate camera or zone view
-    if (alert.camera_id) {
-      navigate(`/video-cameras/${alert.camera_id}`);
-    } else if (alert.zone_id && alert.camera_id) {
-      navigate(`/video-cameras/${alert.camera_id}/zones/${alert.zone_id}`);
-    }
-  };
 
   const alertStats = {
     // Calculate stats based on allAlerts
@@ -264,22 +255,23 @@ Keep it brief and informative.:\n\n${JSON.stringify(filteredAlerts)}}`;
           </div>
         ) : (
           /* Alerts Table */
-          <div className="bg-neutral-800 rounded-lg shadow-md overflow-hidden">
-            <div className="overflow-x-auto">
+          <div className="bg-neutral-800 p-6 rounded-lg shadow-md">
+          <h2 className="text-xl font-semibold mb-4">Latest Alerts</h2>
+          <div className="overflow-x-auto">
               <table className="w-full text-left table-auto">
-                <thead className="bg-neutral-700 text-neutral-200">
-                  <tr>
-                    <th className="px-4 py-3">Timestamp</th>
-                    <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3">Level</th>
-                    <th className="px-4 py-3">Location</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Actions</th>
-                  </tr>
-                </thead>
+                  <thead className="border-b border-neutral-600">
+                      <tr>
+                          <th className="px-4 py-3">Timestamp</th>
+                          <th className="px-4 py-3">Type</th>
+                          <th className="px-4 py-3">Level</th>
+                          <th className="px-4 py-3">Location</th> {/* Assuming zone_id is available */}
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3">Actions</th> {/* Header for details link */}
+                      </tr>
+                  </thead>
                 <tbody>
                   {/* Render filteredAlerts */}
-                  {filteredAlerts.map((alert) => (
+                  {filteredAlerts.length > 0 ? ( filteredAlerts.map((alert) => (
                     <tr
                       key={alert.id}
                       className="border-b border-neutral-700 hover:bg-neutral-700/50 transition-colors"
@@ -303,15 +295,7 @@ Keep it brief and informative.:\n\n${JSON.stringify(filteredAlerts)}}`;
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center space-x-3">
-                          {(alert.camera_id || alert.zone_id) && (
-                            <button
-                              onClick={() => handleCenterView(alert)}
-                              className="text-cyan-400 hover:text-cyan-300 text-sm flex items-center"
-                              title="Center View"
-                            >
-                              <FiTarget size={18} />
-                            </button>
-                          )}
+                          
                           <Link
                             to={`/alerts/${alert.id}`}
                             className="text-cyan-400 hover:text-cyan-300 text-sm flex items-center"
@@ -322,7 +306,11 @@ Keep it brief and informative.:\n\n${JSON.stringify(filteredAlerts)}}`;
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  ))) : (
+                    <tr>
+                      <td colSpan="6" className="text-center py-4 text-neutral-500">No recent alerts found.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
               

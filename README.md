@@ -184,3 +184,20 @@ at commit id: c0da60490a58ea256c3e6dabde9541d608faab65
 
 2132.py 3864.jsx lines of code 24/04/2025
 total = 5996
+
+
+Sfaturi design:
+- pastreaza consistenta intre butoane, tabele etc.
+- la tabel in loc de 2 butoane sub actions pune doar unul cu meniu
+- centreaza header ul cu logoul
+- la login nu e marimea corecta la div
+- camera video cu un mic div rotunjit sub camera cu text in div nu peste camera
+
+
+comisie:
+Vlad Diaconita
+Andra Belciu
+Bogdan Iancu
+Toma Andrei secretar
+
+23-27 iunie se incarca

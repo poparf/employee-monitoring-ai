@@ -1,7 +1,11 @@
 from flask import Flask
 from flask_cors import CORS
+from flask_socketio import SocketIO
 from dotenv import load_dotenv
 import os
+
+socketio = SocketIO(cors_allowed_origins="*")
+
 
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
@@ -50,8 +54,8 @@ def create_app(test_config=None):
         from flask import request
         if request.method == "OPTIONS":
             return "", 200
-
     return app
 
 if __name__ == "__main__":
-    create_app().run(debug=True, threaded=True)
+    app = create_app()
+    socketio.run(app, debug=True, threaded=True)

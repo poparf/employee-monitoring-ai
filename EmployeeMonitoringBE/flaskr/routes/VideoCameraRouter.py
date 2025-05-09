@@ -24,6 +24,7 @@ from collections import defaultdict
 from flaskr.entities.alert_system.RuleCameraLink import RuleCameraLink
 from flaskr.entities.alert_system.RuleZoneLink import RuleZoneLink
 from datetime import datetime
+#from flask_socketio import send
 
 bp = Blueprint("video-cameras", __name__, url_prefix="/video-cameras")
 
@@ -379,8 +380,11 @@ def process_camera_frames(camera_name, rtsp_url,
             alerts = rule_inference.infer(frame_context)
     
             for alert in alerts:
-                alert_manager.process_alert(alert, frame)
-
+                res = alert_manager.process_alert(alert, frame)
+                if res:
+                    # signal the alert to the frontend
+                    pass
+                    
             if current_time - last_cleanup_time > cleanup_interval:
                 disappeared_ids = []
                 for box_id, data in object_dwell_times_local.items():
