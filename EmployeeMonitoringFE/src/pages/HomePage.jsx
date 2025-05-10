@@ -16,12 +16,14 @@ import {
   getAllSecurity,
 } from "../services/MainService";
 import { useUser } from "../context/UserContext";
-import { Bar } from 'react-chartjs-2'; // Importing BarChart from react-chartjs-2
+import { Bar, Line } from 'react-chartjs-2'; // Importing BarChart from react-chartjs-2
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
+  PointElement,
   Title,
   Tooltip,
   Legend,
@@ -31,6 +33,8 @@ ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
+  LineElement,
+  PointElement,
   Title,
   Tooltip,
   Legend
@@ -70,6 +74,7 @@ const DashboardCard = ({
 const HomePage = () => {
     const [alerts, setAlerts] = useState([])
   const [unresolvedAlerts, setUnresolvedAlerts] = useState(0);
+  const [cameras, setCameras] = useState([]);
   const [cameraCounts, setCameraCounts] = useState({ active: 0, inactive: 0 });
   const [employeeCount, setEmployeeCount] = useState(0);
   const [securityCount, setSecurityCount] = useState(0);
@@ -78,7 +83,7 @@ const HomePage = () => {
   const [error, setError] = useState(null);
   const { isAdmin } = useUser();
 
-    const createBarChart = () => {
+    const createAlertsTrendChart = () => {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
         sevenDaysAgo.setHours(0, 0, 0, 0);
@@ -120,7 +125,88 @@ const HomePage = () => {
             labels: labels,
             datasets: [
             {
-                label: 'Alerts count',
+                label: 'Alerts count per day',
+                data: dataCounts,
+                backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                borderColor: 'rgba(255, 99, 132, 1)',
+                borderWidth: 4,
+           
+                tension: 0.4
+            },
+            ],
+        };
+
+        const options = {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                color: '#e0e0e0', // Light grey for tick labels
+                stepSize: 1, // Ensure integer steps for counts
+                },
+                grid: {
+                color: 'rgba(224, 224, 224, 0.2)', // Lighter grid lines
+                },
+            },
+            x: {
+                ticks: {
+                color: '#e0e0e0', // Light grey for tick labels
+                },
+                grid: {
+                color: 'rgba(224, 224, 224, 0.2)', // Lighter grid lines
+                },
+            },
+            },
+            plugins: {
+            legend: {
+                labels: {
+                color: '#e0e0e0', // Light grey for legend text
+                },
+            },
+            tooltip: {
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff',
+                backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            }
+            },
+        };
+
+
+        return (
+            <div className="bg-neutral-800 px-6 pt-6 pb-12 rounded-lg shadow-md mb-8 w-1/2" style={{ height: '400px' }}> {/* Added w-1/2 for half width */}
+              <h2 className="text-xl font-semibold mb-4 px-4 text-white">Alerts Trend (Last 7 Days)</h2>
+              <Line data={data}  options={options}/>
+            </div>
+          );
+        }
+    
+    const createMostActiveCamsChart = () => {
+        let cameraToNoAlerts = {}
+        for (let i = 0; i < alerts.length; i++) {
+            if(alerts[i].camera_id) {
+                if (cameraToNoAlerts[alerts[i].camera_id]) {
+                    cameraToNoAlerts[alerts[i].camera_id] += 1;
+                } else {
+                    cameraToNoAlerts[alerts[i].camera_id] = 1;
+                }
+            }
+        }
+        
+        const cameraNames = cameras.reduce((acc, cam) => {
+            acc[cam.id] = cam.name || `Camera #${cam.id}`; // Default name if not available
+            return acc;
+        }, {});
+
+        const labels = Object.keys(cameraToNoAlerts).map(camId => cameraNames[camId] || `Camera #${camId}`);
+        const dataCounts = Object.values(cameraToNoAlerts);
+
+        const data = {
+            labels: labels,
+            datasets: [
+            {
+                label: 'No. of alerts per camera',
                 data: dataCounts,
                 backgroundColor: 'rgba(255, 99, 132, 0.5)',
                 borderColor: 'rgba(255, 99, 132, 1)',
@@ -166,15 +252,13 @@ const HomePage = () => {
             },
         };
 
-
         return (
-            <div className="bg-neutral-800 p-6 rounded-lg shadow-md mb-8 w-1/2" style={{ height: '400px' }}> {/* Added w-1/2 for half width */}
-              <h2 className="text-xl font-semibold mb-4 px-4 text-white">Alerts Trend (Last 7 Days)</h2>
+            <div className="bg-neutral-800 px-6 pt-6 pb-12 rounded-lg shadow-md mb-8 w-1/2" style={{ height: '400px' }}>
+              <h2 className="text-xl font-semibold mb-4 px-4 text-white">Most Active Cameras</h2>
               <Bar data={data}  options={options}/>
             </div>
           );
-        }
-    
+    }
 
 
   useEffect(() => {
@@ -189,7 +273,7 @@ const HomePage = () => {
         setLatestAlerts(alerts.slice(0, 5));
 
         const camerasResponse = await getCamerasList();
-
+        setCameras(camerasResponse.data.cameras || []);
         const cams = camerasResponse.data.cameras || [];
         const activeCams = cams.filter((cam) => cam.status === "active").length; // Adjust property name if needed
         const inactiveCams = cams.length - activeCams;
@@ -305,9 +389,9 @@ const HomePage = () => {
               )}
             </div>
             <div className="flex space-x-4">
-  {createBarChart()}
-  {/* {createAnotherChart()} */} {/* Placeholder for your next chart */}
-</div>
+  {createAlertsTrendChart()}
+  {createMostActiveCamsChart()} 
+  </div>
             <div className="bg-neutral-800 p-6 rounded-lg shadow-md">
               <h2 className="text-xl font-semibold mb-4 px-4">Latest Alerts</h2>
               <div className="overflow-x-auto">

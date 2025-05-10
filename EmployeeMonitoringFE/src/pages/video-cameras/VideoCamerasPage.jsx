@@ -63,7 +63,7 @@ const VideoCamerasPage = () => {
     return (
         <div className="flex h-screen bg-neutral-900 text-white">
             <Sidebar />
-            <main className="flex-1 p-6 md:p-8 lg:p-10 overflow-y-auto">
+            <main className="flex-1 p-6 md:p-8 lg:p-10 md:pt-6 lg:pt-6 overflow-y-auto">
                 {/* Header and Add Button */}
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-3xl font-semibold">Video Cameras</h1>

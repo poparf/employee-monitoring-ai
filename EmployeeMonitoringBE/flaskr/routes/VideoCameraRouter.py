@@ -457,7 +457,6 @@ def get_camera_by_id(current_user, camera_id):
         "ip": camera.ip,
         "port": camera.port,
         "username": camera.username,
-        "password": camera.password,
         "name": camera.name,
         "location": camera.location,
         "status": status,

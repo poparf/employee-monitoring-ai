@@ -61,6 +61,7 @@ import truckAndTrailerImg from "../../assets/objects/truck-and-trailer.jpg";
 import vanImg from "../../assets/objects/van.jpg";
 import vehicleImg from "../../assets/objects/vehicle.jpg";
 import wheelLoaderImg from "../../assets/objects/wheel-loader.jpg";
+import faceRecognitionImg from "../../assets/objects/face-recognition.jpg";
 
 const ppeImageMapping = {
   Excavator: excavatorImg,
@@ -88,6 +89,7 @@ const ppeImageMapping = {
   van: vanImg,
   vehicle: vehicleImg,
   "wheel loader": wheelLoaderImg,
+  face_recognition: faceRecognitionImg,
 };
 
 const extractRequiredFiltersFromRules = (rules) => {
@@ -209,24 +211,25 @@ const IndividualVideoCameraPage = () => {
         checkedFilters.push(checkbox.getAttribute("data-filter-label"));
       }
     });
+
+    // Set both filters array and face recognition state
     setFilters(checkedFilters);
-    setStreamUrl(buildStreamUrl());
+    setIsFaceRecognitionEnabled(checkedFilters.includes("face_recognition"));
+    setStreamUrl(buildStreamUrl(checkedFilters));
   };
 
-  const buildStreamUrl = () => {
+  const buildStreamUrl = (selectedFilters = null) => {
     if (!camera?.name || !token) return "";
 
     // Start with the base URL
     let url = `${SERVER_URL}/video-cameras/${camera.name}/stream?token=${token}`;
 
-    // Add face recognition filter if enabled
-    if (isFaceRecognitionEnabled) {
-      url += "&face_recognition=true";
-    }
+    // Use provided filters or current state
+    const activeFilters = selectedFilters || filters;
 
-    // Add detection filters
-    if (filters.length > 0) {
-      filters.forEach((filter) => {
+    // Add all filters including face recognition
+    if (activeFilters.length > 0) {
+      activeFilters.forEach((filter) => {
         url += `&${filter}=true`;
       });
     }
@@ -244,9 +247,18 @@ const IndividualVideoCameraPage = () => {
       const response = await getCamera(cameraId);
       const cam = response.data.camera;
       setCamera(cam);
-      const faceRec = cam?.filters?.includes("face_recognition");
-      setIsFaceRecognitionEnabled(faceRec);
-      setStreamUrl(buildStreamUrl());
+
+      // Create initial filters array that includes face_recognition if enabled
+      const initialFilters = [];
+      if (cam?.filters?.includes("face_recognition")) {
+        initialFilters.push("face_recognition");
+        setIsFaceRecognitionEnabled(true);
+      } else {
+        setIsFaceRecognitionEnabled(false);
+      }
+
+      setFilters(initialFilters);
+      setStreamUrl(buildStreamUrl(initialFilters));
 
       try {
         const rulesResponse = await getAlertRulesForCamera(cameraId);
@@ -294,7 +306,7 @@ const IndividualVideoCameraPage = () => {
       setIsStreamActive(false);
       setError(null);
     }
-  }, [camera, token, isFaceRecognitionEnabled]);
+  }, [camera, token, filters]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -320,12 +332,12 @@ const IndividualVideoCameraPage = () => {
 
       // If we're not in manual mode (user hasn't set filters), use rule-based filters
       if (filters.length === 0) {
-        setFilters(objectFilters);
-      }
-
-      // If face recognition is needed by a rule, enable it
-      if (needsFaceRecognition && !isFaceRecognitionEnabled) {
-        setIsFaceRecognitionEnabled(true);
+        const newFilters = [...objectFilters];
+        if (needsFaceRecognition) {
+          newFilters.push("face_recognition");
+        }
+        setFilters(newFilters);
+        setIsFaceRecognitionEnabled(needsFaceRecognition);
       }
     }
   }, [cameraRules]);
@@ -533,7 +545,7 @@ const IndividualVideoCameraPage = () => {
   return (
     <div className="flex h-screen bg-neutral-900 text-white">
       <Sidebar />
-      <main className="flex-1 p-6 md:p-8 lg:p-10 overflow-y-auto">
+      <main className="flex-1 p-6 md:p-8 lg:p-10 md:pt-6 lg:pt-6  overflow-y-auto">
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center">
             <button
@@ -667,9 +679,7 @@ const IndividualVideoCameraPage = () => {
                   <>
                     <img
                       ref={streamRef}
-                      key={`stream-${isFaceRecognitionEnabled}-${streamUrl}-${filters.join(
-                        "-"
-                      )}`}
+                      key={`stream-${streamUrl}-${filters.join("-")}`}
                       src={streamUrl}
                       alt={`Stream from ${camera.name}`}
                       className="w-full h-full object-cover"
@@ -721,21 +731,6 @@ const IndividualVideoCameraPage = () => {
                   </div>
                 </div>
               )}
-              <div className="mt-4">
-                <label className="inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={isFaceRecognitionEnabled}
-                    ref={faceRecognitionSliderRef}
-                    onChange={handleToggleFaceRecognition}
-                  />
-                  <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-cyan-300 dark:peer-focus:ring-cyan-800 rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-neutral-600 peer-checked:bg-cyan-600"></div>
-                  <span className="ms-3 text-sm font-medium text-neutral-300">
-                    Face Recognition
-                  </span>
-                </label>
-              </div>
 
               <div>
                 <div className="flex justify-center mt-4">
@@ -757,9 +752,10 @@ const IndividualVideoCameraPage = () => {
                         arrowIcon.classList.remove("rotate-180");
                       }
                     }}
-                    className="p-2 rounded-full bg-neutral-700 hover:bg-neutral-600 transition-transform duration-300"
+                    className="p-2 rounded-full flex bg-neutral-700 hover:bg-neutral-600 transition-transform duration-300"
                   >
-                    <FiArrowDown size={20} />
+                    <FiArrowDown size={20} className="mr-2" />
+                    <p className="text-neutral-300">Select filters</p>
                   </button>
                 </div>
                 <div
@@ -767,7 +763,6 @@ const IndividualVideoCameraPage = () => {
                   style={{ display: "none" }}
                   className="mt-4 p-4 bg-neutral-800 rounded-lg"
                 >
-                  <p className="text-neutral-300">Select objects to detect:</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-4">
                     {Object.entries(ppeImageMapping).map(([label, image]) => (
                       <div
@@ -798,62 +793,6 @@ const IndividualVideoCameraPage = () => {
                     </button>
                   </div>
                 </div>
-              </div>
-
-              <div className="bg-neutral-800 rounded-lg shadow-md p-4 mt-6">
-                <h3 className="text-lg font-semibold mb-3 flex items-center">
-                  <FiSliders className="mr-2" /> Camera Rules
-                </h3>
-                {rulesLoading && <LoadingComponent size="small" />}
-                {rulesError && (
-                  <p className="text-red-400 text-sm mb-2">
-                    Error loading rules: {rulesError}
-                  </p>
-                )}
-                {!rulesLoading && !rulesError && (
-                  <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-                    {cameraRules.length > 0 ? (
-                      cameraRules.map((rule) => (
-                        <div
-                          key={rule.id}
-                          className="flex justify-between items-center bg-neutral-700 p-2 rounded"
-                        >
-                          <span
-                            className="text-sm flex-grow mr-4"
-                            title={rule.description}
-                          >
-                            {rule.description.length > 40
-                              ? `${rule.description.substring(0, 40)}...`
-                              : rule.description}
-                          </span>
-                          <button
-                            onClick={() => toggleRuleActiveStatus(rule)}
-                            className={`p-1 rounded ${
-                              rule.is_active
-                                ? "text-green-400"
-                                : "text-neutral-500"
-                            } hover:bg-neutral-600 transition-colors`}
-                            title={
-                              rule.is_active
-                                ? "Deactivate Rule"
-                                : "Activate Rule"
-                            }
-                          >
-                            {rule.is_active ? (
-                              <FiToggleRight size={22} />
-                            ) : (
-                              <FiToggleLeft size={22} />
-                            )}
-                          </button>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-neutral-500 text-sm">
-                        No rules assigned to this camera.
-                      </p>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
 
@@ -899,15 +838,7 @@ const IndividualVideoCameraPage = () => {
                   </span>
                   <span className="font-mono">{camera?.username || "N/A"}</span>
                 </p>
-                <p className="flex justify-between py-2 border-b border-neutral-700">
-                  <span className="text-neutral-400 flex items-center">
-                    <FiLock className="mr-2" />
-                    Password:
-                  </span>
-                  <span className="font-mono">
-                    {camera?.password ? "********" : "N/A"}
-                  </span>
-                </p>
+              
                 <p className="flex justify-between py-2 border-b border-neutral-700">
                   <span className="text-neutral-400 flex items-center">
                     <FiAlertCircle className="mr-2" />
@@ -982,6 +913,62 @@ const IndividualVideoCameraPage = () => {
                   ))}
                 </div>
               )}
+
+              <div className="mt-4 flex-grow">
+                <h3 className="text-lg font-semibold mb-3 flex items-center">
+                  <FiSliders className="mr-2" /> Camera Rules
+                </h3>
+                {rulesLoading && "Loading rules..."}
+                {rulesError && (
+                  <p className="text-red-400 text-sm mb-2">
+                    Error loading rules: {rulesError}
+                  </p>
+                )}
+                {!rulesLoading && !rulesError && (
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                    {cameraRules.length > 0 ? (
+                      cameraRules.map((rule) => (
+                        <div
+                          key={rule.id}
+                          className="flex justify-between items-center bg-neutral-700 p-2 rounded"
+                        >
+                          <span
+                            className="text-sm flex-grow mr-4"
+                            title={rule.description}
+                          >
+                            {rule.description.length > 40
+                              ? `${rule.description.substring(0, 40)}...`
+                              : rule.description}
+                          </span>
+                          <button
+                            onClick={() => toggleRuleActiveStatus(rule)}
+                            className={`p-1 rounded ${
+                              rule.is_active
+                                ? "text-green-400"
+                                : "text-neutral-500"
+                            } hover:bg-neutral-600 transition-colors`}
+                            title={
+                              rule.is_active
+                                ? "Deactivate Rule"
+                                : "Activate Rule"
+                            }
+                          >
+                            {rule.is_active ? (
+                              <FiToggleRight size={22} />
+                            ) : (
+                              <FiToggleLeft size={22} />
+                            )}
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-neutral-500 text-sm">
+                        No rules assigned to this camera.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
