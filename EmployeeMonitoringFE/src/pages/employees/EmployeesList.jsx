@@ -13,7 +13,6 @@ const EmployeesList = () => {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [employeeToDelete, setEmployeeToDelete] = useState(null);
     const { token } = useUser();
-
     useEffect(() => {
         const fetchEmployees = async () => {
             setLoading(true);
@@ -77,12 +76,13 @@ const EmployeesList = () => {
         </div>
     );
 
+
     const DeleteModal = () => (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
             <div className="bg-neutral-800 rounded-lg p-6 max-w-md w-full mx-4">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-xl font-semibold">Confirm Deletion</h3>
-                    <button onClick={handleDeleteCancel} className="text-neutral-400 hover:text-white">
+                    <button onClick={handleDeleteCancel} className="cursor-pointer text-neutral-400 hover:text-white">
                         <FiX size={24} />
                     </button>
                 </div>
@@ -186,6 +186,7 @@ const EmployeesList = () => {
                                             <td className="px-4 py-3">{employee.department || 'N/A'}</td>
                                             <td className="px-4 py-3">{employee.role || 'N/A'}</td>
                                             <td className="px-4 py-3">
+                                                
                                                 <div className="flex space-x-2">
                                                     <Link 
                                                         to={`/employees/${employee.id}/edit`}
@@ -195,7 +196,7 @@ const EmployeesList = () => {
                                                     </Link>
                                                     <button
                                                         onClick={() => handleDeleteClick(employee)}
-                                                        className="text-neutral-400 hover:text-red-500 p-1"
+                                                        className="cursor-pointer text-neutral-400 hover:text-red-500 p-1"
                                                     >
                                                         <FiTrash size={18} />
                                                     </button>

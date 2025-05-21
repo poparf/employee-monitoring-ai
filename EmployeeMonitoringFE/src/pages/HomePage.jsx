@@ -28,6 +28,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
+import { useAppData } from "../context/AppDataContext";
 
 ChartJS.register(
   CategoryScale,
@@ -72,9 +73,7 @@ const DashboardCard = ({
 );
 
 const HomePage = () => {
-    const [alerts, setAlerts] = useState([])
   const [unresolvedAlerts, setUnresolvedAlerts] = useState(0);
-  const [cameras, setCameras] = useState([]);
   const [cameraCounts, setCameraCounts] = useState({ active: 0, inactive: 0 });
   const [employeeCount, setEmployeeCount] = useState(0);
   const [securityCount, setSecurityCount] = useState(0);
@@ -82,6 +81,7 @@ const HomePage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { isAdmin } = useUser();
+  const {alerts, cameras, loadAllAppData } = useAppData();
 
     const createAlertsTrendChart = () => {
         const sevenDaysAgo = new Date();
@@ -268,24 +268,24 @@ const HomePage = () => {
       try {
         const alertsResponse = await getAlerts();
         let alerts = alertsResponse.data.alerts;
-        setAlerts(alerts);
         setUnresolvedAlerts(alerts.filter((alert) => alert.status === "active").length); 
         setLatestAlerts(alerts.slice(0, 5));
 
         const camerasResponse = await getCamerasList();
-        setCameras(camerasResponse.data.cameras || []);
         const cams = camerasResponse.data.cameras || [];
-        const activeCams = cams.filter((cam) => cam.status === "active").length; // Adjust property name if needed
+        const activeCams = cams.filter((cam) => cam.status === "active").length; 
         const inactiveCams = cams.length - activeCams;
         setCameraCounts({ active: activeCams, inactive: inactiveCams });
 
+        let employeesResponse = null;
+        let securityResponse = null;
         if (isAdmin()) {
-            // TODO: Create a context for employees and security personnel to avoid multiple API calls
-            const employeesResponse = await getAllEmployees();
+             employeesResponse = await getAllEmployees();
           setEmployeeCount(employeesResponse.data.length || 0);
-          const securityResponse = await getAllSecurity();
+          securityResponse = await getAllSecurity();
           setSecurityCount(securityResponse.data.length || 0);
         }
+        loadAllAppData(cams, alerts, employeesResponse.data, securityResponse.data);
       } catch (err) {
         console.error("Failed to fetch dashboard data:", err);
         setError("Failed to load dashboard data. Please try again later.");
@@ -295,6 +295,7 @@ const HomePage = () => {
         setEmployeeCount(0);
         setSecurityCount(0);
         setLatestAlerts([]);
+        loadAllAppData([], [], [], []);
       } finally {
         setLoading(false);
       }

@@ -25,3 +25,8 @@ class VideoCamera(Entity):
 
     persons_detected: Mapped[List["PersonDetected"]] = relationship()
     zones: Mapped[List["Zone"]] = relationship()
+    rule_links: Mapped[List["RuleCameraLink"]] = relationship(
+        "RuleCameraLink",
+        back_populates="camera",
+        cascade="all, delete-orphan"
+    )

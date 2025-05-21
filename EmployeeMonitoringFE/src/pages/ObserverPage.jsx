@@ -4,15 +4,16 @@ import { getCamerasList } from "../services/MainService";
 import { useUser } from "../context/UserContext";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 import VideoCameraFeed from "../components/video/VideoCameraFeed";
+import { useAppData } from "../context/AppDataContext";
 
 const ObserverPage = () => {
-  const [cameras, setCameras] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [focusedCamera, setFocusedCamera] = useState(null);
   const { token } = useUser();
-
+  const {cameras, setCameras} = useAppData();
+  
   useEffect(() => {
     const fetchCameras = async () => {
       setLoading(true);
@@ -29,7 +30,7 @@ const ObserverPage = () => {
       }
     };
 
-    if (token) {
+    if (token && cameras.length === 0) {
       fetchCameras();
     } else {
       setError("Authentication token not found. Please log in.");

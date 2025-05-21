@@ -24,7 +24,11 @@ def auth_required(f):
                     return {
                         "message": "Invalid token",
                     }, 401
-                
+                    
+            except TimeoutError:
+                return {
+                    "message": "Timeout error.",
+                }, 503 
             except Exception as e:
                 return {
                     "message": "Something went wrong",
@@ -35,6 +39,10 @@ def auth_required(f):
             g.tenant_id = logged_user.tenant_id
             
             return f(logged_user, *args, **kwargs)
+        except TimeoutError:
+                return {
+                    "message": "Timeout error.",
+                }, 503 
         except Exception as e:
             print(e)
             return {

@@ -19,6 +19,10 @@ def permission_required(permission_name):
                 return {
                     "message": "Unauthorized"
                 }, 401
+            except TimeoutError:
+                return {
+                    "message": "Timeout error.",
+                }, 503 
             except Exception as e:
                 print(e)
                 return {
