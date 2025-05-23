@@ -29,13 +29,19 @@ const ObserverPage = () => {
         setLoading(false);
       }
     };
-
-    if (token && cameras.length === 0) {
-      fetchCameras();
+    console.log(cameras);
+    if(token) {
+      if(cameras.length === 0) {
+        fetchCameras();
+      } else {
+        setLoading(false);
+        setError(null);
+      }
     } else {
       setError("Authentication token not found. Please log in.");
       setLoading(false);
     }
+  
   }, [token]);
 
   const toggleDetails = () => {

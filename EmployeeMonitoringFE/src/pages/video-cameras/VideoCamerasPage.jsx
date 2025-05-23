@@ -14,7 +14,7 @@ const VideoCamerasPage = () => {
     const [streamKey, setStreamKey] = useState(Date.now());
     const { token } = useUser();
     const navigate = useNavigate();
-    
+    console.log(token);
     const refreshTimerRef = useRef(null);
     
     const fetchCameras = async () => {
