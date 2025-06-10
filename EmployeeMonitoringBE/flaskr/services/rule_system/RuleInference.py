@@ -352,8 +352,8 @@ class RuleInference:
         camera_id = self.frame_context.get("camera_id")
         current_time = datetime.now()
         
-        print(f"Starting inference with {len(self.parsed_rules)} rules for camera {camera_id}")
-        print(f"Frame context summary: Objects detected: {self.frame_context.get('detected_objects', {})}")
+        #print(f"Starting inference with {len(self.parsed_rules)} rules for camera {camera_id}")
+       # print(f"Frame context summary: Objects detected: {self.frame_context.get('detected_objects', {})}")
 
         for parsed_rule in self.parsed_rules:
             rule_id = parsed_rule["rule_id"]
@@ -371,12 +371,12 @@ class RuleInference:
             conditions = parsed_rule["conditions_data"]["conditions"]
             logical_op = parsed_rule["conditions_data"]["logical_operator"].upper() # AND or OR
             
-            print(f"Evaluating rule {rule_id}: {parsed_rule['description']}")
-            print(f"Logical operator: {logical_op}")
+           # print(f"Evaluating rule {rule_id}: {parsed_rule['description']}")
+            #print(f"Logical operator: {logical_op}")
 
             results = [self._evaluate_condition(cond) for cond in conditions]
             
-            print(f"Condition results: {results}")
+            #print(f"Condition results: {results}")
 
             rule_triggered = False
             if logical_op == "AND":

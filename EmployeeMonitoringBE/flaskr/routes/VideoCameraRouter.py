@@ -117,6 +117,7 @@ def validate_token(token):
         g.tenant_id = logged_user.tenant_id
         return logged_user, 200
         
+
 @bp.route("/", methods=["POST"])
 @permission_required("CREATE_VIDEO_CAMERA")
 def create_video_camera(current_user):

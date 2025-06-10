@@ -23,7 +23,6 @@ class RoutingSession(Session):
             if tenant_id and tenant_id in engine_registry:
                 return engine_registry[tenant_id]
         else:
-            print("Daca s-a ajuns aici s-a terminat...")
             return None
         
 def setup_users_db(app):
