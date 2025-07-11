@@ -211,6 +211,7 @@ def process_camera_frames(camera_name, rtsp_url,
             except Exception as e:
                 print(f"Error loading YOLO model: {e}")
 
+
         #cap = cv.VideoCapture(rtsp_url)
         cap = cv.VideoCapture(0)
         cap.set(cv.CAP_PROP_BUFFERSIZE, 2)
@@ -261,18 +262,18 @@ def process_camera_frames(camera_name, rtsp_url,
                         face_names.append(name)
                         if camera_name not in detected_objects:
                             detected_objects[camera_name] = {}
-                            if "face_recognition" not in detected_objects[camera_name]:
-                                detected_objects[camera_name]["face_recognition"] = {}
-                            if name not in detected_objects[camera_name]["face_recognition"]:
-                                detected_objects[camera_name]["face_recognition"][name] = {
-                                    "first_seen": time.time(),
-                                    "last_seen": time.time(),
-                                    "dwell_time": 0                                   
-                                }
-                            else:
-                                detected_objects[camera_name]["face_recognition"][name]["last_seen"] = time.time()
-                                detected_objects[camera_name]["face_recognition"][name]["dwell_time"] = time.time() - detected_objects[camera_name]["face_recognition"][name]["first_seen"]
-                                
+                        if "face_recognition" not in detected_objects[camera_name]:
+                            detected_objects[camera_name]["face_recognition"] = {}
+                        if name not in detected_objects[camera_name]["face_recognition"]:
+                            detected_objects[camera_name]["face_recognition"][name] = {
+                                "first_seen": time.time(),
+                                "last_seen": time.time(),
+                                "dwell_time": 0                                   
+                            }
+                        else:
+                            detected_objects[camera_name]["face_recognition"][name]["last_seen"] = time.time()
+                            detected_objects[camera_name]["face_recognition"][name]["dwell_time"] = time.time() - detected_objects[camera_name]["face_recognition"][name]["first_seen"]
+                    
                     for (top, right, bottom, left), name in zip(face_locations, face_names):
                         top *= 4
                         right *= 4
@@ -334,20 +335,38 @@ def process_camera_frames(camera_name, rtsp_url,
             }
             
             # Add face recognition data to frame context if applicable
-            if "face_recognition" in filters and camera_name in detected_objects and "face_recognition" in detected_objects[camera_name]:
-                recognized_persons = []
-                for name, data in detected_objects[camera_name]["face_recognition"].items():
-                    if name != "Unknown":
-                        # If we have a known person, add their ID to detected_persons
-                        # This is a simplified approach - you might need to look up actual employee IDs
-                        name_parts = name.split(" ")
-                        if len(name_parts) >= 2:
-                            first_name, last_name = name_parts[0], name_parts[1]
-                            employee = db.query(Employee).filter_by(firstName=first_name, lastName=last_name).first()
-                            if employee:
-                                recognized_persons.append(employee.id)
-                frame_context["detected_persons"] = recognized_persons
+            # if "face_recognition" in filters and camera_name in detected_objects and "face_recognition" in detected_objects[camera_name]:
+            #     recognized_persons = []
+            #     for name, data in detected_objects[camera_name]["face_recognition"].items():
+            #         if name != "Unknown":
+            #             # If we have a known person, add their ID to detected_persons
+            #             # This is a simplified approach - you might need to look up actual employee IDs
+            #             name_parts = name.split(" ")
+            #             if len(name_parts) >= 2:
+            #                 first_name, last_name = name_parts[0], name_parts[1]
+            #                 employee = db.query(Employee).filter_by(firstName=first_name, lastName=last_name).first()
+            #                 if employee:
+            #                     recognized_persons.append(employee.id)
+            #     frame_context["detected_persons"] = recognized_persons
             
+            if "face_recognition" in filters:
+                recognized_persons = []
+                # Process the face_names that were just detected in this frame
+                if 'face_names' in locals() and face_names:
+                    for name in face_names:
+                        if name != "Unknown":
+                            # Look up employee ID for recognized person
+                            name_parts = name.split(" ")
+                            if len(name_parts) >= 2:
+                                first_name = " ".join(name_parts[:-1]).strip()
+                                last_name = name_parts[-1]
+                                employee = db.query(Employee).filter_by(firstName=first_name, lastName=last_name).first()
+                                if employee:
+                                    recognized_persons.append(employee.id)
+                                    print(f"Added recognized person to frame context: {name} (ID: {employee.id})")
+                frame_context["detected_persons"] = recognized_persons
+                print(f"Frame context detected_persons: {frame_context['detected_persons']}")
+
             # Process detected objects from YOLO
             if camera_name in detected_objects:
                 object_counts = {}
@@ -502,8 +521,7 @@ def get_camera(camera_name):
             print(f"Error loading face data: {e}")
             return {"message": "Internal server error"}, 500
 
-
-    rtsp_url = 0
+    rtsp_url = f"rtsp://{camera.username}:{camera.password}@{camera.ip}:{camera.port}/stream2"
     if camera_name not in active_cameras:
         active_cameras[camera_name] = {
             "frame": None,
