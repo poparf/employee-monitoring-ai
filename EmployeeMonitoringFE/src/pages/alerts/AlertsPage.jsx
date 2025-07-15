@@ -31,14 +31,14 @@ const AlertsPage = () => {
     setSummary(""); // Clear previous summary
   
     const OLLAMA_API_URL = "http://localhost:11434/api/generate"; // Default Ollama API endpoint
-    const MODEL_NAME = "deepseek-r1:1.5b"; // Or your chosen small model
+    const MODEL_NAME = "openhermes:latest"; // Or your chosen small model
   
-    const prompt = `Summarize the provided security alert JSON data. Output a text-only bulleted list covering:
+    const prompt = `Summarize the provided security alert JSON data. Output a text-only bulleted list in a simple text format without MD elements covering:
 - Overall Status: Total, Active, Resolved counts.
 - Key Trends: Common alert types and locations.
 - Priority Items: Mention any high-priority active alerts.
 - Quick Stats: Include relevant numbers.
-Keep it brief and informative.:\n\n${JSON.stringify(filteredAlerts)}}`;
+Keep it brief and informative and made for untechnical persons.:\n\n${JSON.stringify(filteredAlerts)}}`;
   
     try {
       const response = await fetch(OLLAMA_API_URL, {

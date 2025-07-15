@@ -258,6 +258,7 @@ const IndividualVideoCameraPage = () => {
       }
 
       setFilters(initialFilters);
+      console.log(streamUrl)
       setStreamUrl(buildStreamUrl(initialFilters));
 
       try {
@@ -719,7 +720,7 @@ const IndividualVideoCameraPage = () => {
                   {currentZone && currentZone.points.length > 0 && (
                     <polygon
                       points={polygonPoints(currentZone.points)}
-                      className="fill-yellow-500 fill-opacity-20 stroke-yellow-500 stroke-2"
+                      class="fill-red-500 opacity-40 stroke-red-700 stroke-2"
                     />
                   )}
                 </svg>

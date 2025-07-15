@@ -15,9 +15,9 @@ export const AppDataProvider = ({ children }) => {
         setCameras(cameras);
         setAlerts(alerts);
         if (isAdmin()) {
-      setEmployees(employees || []);
-      setSecurity(security || []);
-    }
+          setEmployees(employees || []);
+          setSecurity(security || []);
+        }
     }
 
 

@@ -285,6 +285,12 @@ const HomePage = () => {
           securityResponse = await getAllSecurity();
           setSecurityCount(securityResponse.data.length || 0);
         }
+         else {
+          employeesResponse = { data: [] }; 
+          securityResponse = { data: [] };
+          setEmployeeCount(0);
+          setSecurityCount(0);
+        }
         loadAllAppData(cams, alerts, employeesResponse.data, securityResponse.data);
       } catch (err) {
         console.error("Failed to fetch dashboard data:", err);

@@ -212,8 +212,8 @@ def process_camera_frames(camera_name, rtsp_url,
                 print(f"Error loading YOLO model: {e}")
 
 
-        #cap = cv.VideoCapture(rtsp_url)
-        cap = cv.VideoCapture(0)
+        cap = cv.VideoCapture(rtsp_url)
+        #cap = cv.VideoCapture(0)
         cap.set(cv.CAP_PROP_BUFFERSIZE, 2)
         active_cameras[camera_name]["cap"] = cap
         if not cap.isOpened():
